@@ -47,6 +47,9 @@ export const inquiryValidation = [
       if (/^[0-9a-fA-F]{24}$/.test(val)) return true;
       throw new Error("Invalid project reference format");
     }),
+  body("utmSource").optional().trim().escape(),
+  body("utmMedium").optional().trim().escape(),
+  body("utmCampaign").optional().trim().escape(),
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +60,17 @@ export const createInquiry = [
   catchAsync(async (req, res) => {
     if (!validate(req, res)) return;
 
-    const { name, email, phone, subject, message, interestedProject } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      subject,
+      message,
+      interestedProject,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+    } = req.body;
 
     // Set status workflow to 'New'
     // Source defaults to 'Project Enquiry' if project ID is provided, else 'Website Contact Form'
@@ -84,6 +97,9 @@ export const createInquiry = [
       status: "New",
       source,
       attachments,
+      utmSource: utmSource || undefined,
+      utmMedium: utmMedium || undefined,
+      utmCampaign: utmCampaign || undefined,
     });
 
     // Populate interestedProject so the email has access to the title details

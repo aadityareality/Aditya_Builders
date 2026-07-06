@@ -9,6 +9,8 @@ import { submitContactForm, getProjects } from "../services/api.js";
 import { useSiteSettings } from "../context/SiteSettingsContext.jsx";
 import Button from "../components/ui/Button.jsx";
 import SectionHeading from "../components/ui/SectionHeading.jsx";
+import { trackAnalyticsEvent } from "../utils/analytics.js";
+import { trackPixelEvent } from "../utils/pixel.js";
 
 export default function Contact() {
   const settings = useSiteSettings();
@@ -135,6 +137,15 @@ export default function Contact() {
     if (subject) formData.append("subject", subject);
     if (interestedProject) formData.append("interestedProject", interestedProject);
 
+    // Capture UTM parameters from URL query string
+    const utms = new URLSearchParams(window.location.search);
+    const utmSrc = utms.get("utm_source");
+    const utmMed = utms.get("utm_medium");
+    const utmCam = utms.get("utm_campaign");
+    if (utmSrc) formData.append("utmSource", utmSrc);
+    if (utmMed) formData.append("utmMedium", utmMed);
+    if (utmCam) formData.append("utmCampaign", utmCam);
+
     // Append attachments arrays (key matches multer router expects: 'photos')
     attachments.forEach((att) => {
       formData.append("photos", att.fileObj);
@@ -143,6 +154,10 @@ export default function Contact() {
     try {
       const { data } = await submitContactForm(formData);
       if (data.success) {
+        // Trigger analytics tracking events
+        trackAnalyticsEvent("contact_form_submitted", "form", interestedProject ? "project_enquiry" : "general");
+        trackPixelEvent("Lead", { content_name: interestedProject ? "project_enquiry" : "general_contact", value: 1 });
+
         toast.success(data.message || "Thank you! We'll get back to you shortly.");
         
         // Reset state values
@@ -230,7 +245,15 @@ export default function Contact() {
                   <div className="flex flex-col gap-1.5 mt-1">
                     {settings.phoneNumbers &&
                       settings.phoneNumbers.map((num) => (
-                        <a key={num} href={`tel:${num.replace(/\s+/g, "")}`} className="hover:text-[#E8871E] font-bold">
+                        <a
+                          key={num}
+                          href={`tel:${num.replace(/\s+/g, "")}`}
+                          onClick={() => {
+                            trackAnalyticsEvent("phone_number_clicked", "click", "contact_page");
+                            trackPixelEvent("Contact", { content_name: "phone_click", value: 1 });
+                          }}
+                          className="hover:text-[#E8871E] font-bold"
+                        >
                           {num}
                         </a>
                       ))}
@@ -242,11 +265,38 @@ export default function Contact() {
                 <FiMail className="text-[#F5A623] w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-extrabold text-[#2E2A26] mb-1">Email Us</h4>
-                  <a href={`mailto:${settings.email}`} className="hover:text-[#E8871E] font-bold mt-1 block break-all">
+                  <a
+                    href={`mailto:${settings.email}`}
+                    onClick={() => {
+                      trackAnalyticsEvent("email_link_clicked", "click", "contact_page");
+                    }}
+                    className="hover:text-[#E8871E] font-bold mt-1 block break-all"
+                  >
                     {settings.email}
                   </a>
                 </div>
               </div>
+
+              {settings.whatsappNumber && (
+                <div className="flex gap-4 items-start bg-white p-5 rounded-2xl border border-amber-100/50 shadow-xs">
+                  <FaWhatsapp className="text-[#25D366] w-5 h-5 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-extrabold text-[#2E2A26] mb-1">WhatsApp Chat</h4>
+                    <a
+                      href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Hi, I'm interested in Aditya Builders' projects. Please share more details.")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        trackAnalyticsEvent("whatsapp_button_clicked", "click", "contact_inline");
+                        trackPixelEvent("Contact", { content_name: "whatsapp_inline", value: 1 });
+                      }}
+                      className="hover:text-[#E8871E] font-bold mt-1 block"
+                    >
+                      Chat with Sales Representative →
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Social connection handles */}

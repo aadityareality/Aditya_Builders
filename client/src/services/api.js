@@ -55,4 +55,8 @@ export const submitContactForm = async (formData) => {
   });
 };
 
+export const submitCallbackRequest = async (data) => {
+  return apiInstance.post("/callback-request", data);
+};
+
 export default apiInstance;

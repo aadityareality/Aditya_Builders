@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Header from "./Header.jsx";
 import Footer from "./Footer.jsx";
+import WhatsAppFloatingButton from "../ui/WhatsAppFloatingButton.jsx";
 
 export default function Layout() {
   return (
@@ -11,6 +12,8 @@ export default function Layout() {
       <main className="flex-grow">
         <Outlet />
       </main>
+
+      <WhatsAppFloatingButton />
 
       <Footer />
     </div>

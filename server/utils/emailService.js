@@ -155,3 +155,77 @@ export const sendContactNotificationEmail = async (inquiry) => {
     console.error("❌ [Email Service] Resend email delivery failed:", error.message);
   }
 };
+
+/**
+ * sendCallbackNotificationEmail
+ * Dispatches callback requests alerts to the sales team inbox via Resend.
+ */
+export const sendCallbackNotificationEmail = async (callback) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  const toEmail = process.env.NOTIFY_EMAIL_TO || "admin@adityabuilders.in";
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+  if (!apiKey || apiKey.trim() === "" || apiKey === "re_development_dummy_key") {
+    console.warn("⚠️  [Email Service] RESEND_API_KEY not configured. Falling back to stub logging.");
+    console.log("✉️  [Email Service Stub] New Callback Request details:");
+    console.log(`   - To: ${toEmail}`);
+    console.log(`   - Name: ${callback.name}`);
+    console.log(`   - Phone: ${callback.phone}`);
+    console.log(`   - Preferred Time: ${callback.preferredTime}`);
+    if (callback.relatedProject) {
+      console.log(`   - Project Ref ID: ${callback.relatedProject}`);
+    }
+    return;
+  }
+
+  try {
+    const projectTitle = callback.relatedProject?.title || "";
+    const htmlContent = `
+      <div style="font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 25px; border: 1px solid #f5a623; border-radius: 16px; background-color: #fffbf5; color: #2e2a26;">
+        <div style="text-align: center; border-bottom: 2px solid #f5a623; padding-bottom: 20px; margin-bottom: 25px;">
+          <h2 style="color: #e8871e; margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.5px;">Aditya Builders Portal</h2>
+          <p style="font-size: 11px; color: #6b625a; margin: 4px 0 0 0; text-transform: uppercase; font-weight: bold; tracking-widest;">New Callback Request</p>
+        </div>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; font-size: 14px;">
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold; color: #6b625a; width: 150px; border-bottom: 1px solid #f0e6db;">Customer Name:</td>
+            <td style="padding: 8px 0; color: #2e2a26; border-bottom: 1px solid #f0e6db; font-weight: bold;">${callback.name}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold; color: #6b625a; border-bottom: 1px solid #f0e6db;">Phone Number:</td>
+            <td style="padding: 8px 0; color: #e8871e; border-bottom: 1px solid #f0e6db; font-weight: bold;"><a href="tel:${callback.phone}" style="color: #e8871e; text-decoration: none;">${callback.phone}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold; color: #6b625a; border-bottom: 1px solid #f0e6db;">Preferred Call Time:</td>
+            <td style="padding: 8px 0; color: #2e2a26; border-bottom: 1px solid #f0e6db;">${callback.preferredTime}</td>
+          </tr>
+          ${projectTitle ? `
+          <tr>
+            <td style="padding: 8px 0; font-weight: bold; color: #6b625a; border-bottom: 1px solid #f0e6db;">Project Interest:</td>
+            <td style="padding: 8px 0; color: #e8871e; border-bottom: 1px solid #f0e6db; font-weight: bold;">${projectTitle}</td>
+          </tr>` : ""}
+        </table>
+        
+        <div style="background-color: #f5a623; color: #ffffff; border-radius: 8px; padding: 12px; text-align: center; font-weight: bold; font-size: 13px; margin-top: 10px;">
+          📞 Action Required: Please call this number back as soon as possible.
+        </div>
+        
+        <div style="font-size: 11px; text-align: center; color: #6b625a; border-top: 1px solid #f0e6db; padding-top: 15px; margin-top: 25px;">
+          <p style="margin: 0;">This is an automated callback alert from the Aditya Builders CMS panel.</p>
+          <p style="margin: 5px 0 0 0;">Bhavnagar, Gujarat • Quality | Trust</p>
+        </div>
+      </div>
+    `;
+
+    await resendClient.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject: `📞 Callback Lead: ${callback.name} (${projectTitle || "No project specified"})`,
+      html: htmlContent,
+    });
+    console.log("📧 [Email Service] Resend callback alert dispatched successfully");
+  } catch (error) {
+    console.error("❌ [Email Service] Resend callback email delivery failed:", error.message);
+  }
+};

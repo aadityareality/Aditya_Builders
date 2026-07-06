@@ -34,6 +34,9 @@ import Loader from "../components/ui/Loader.jsx";
 import SectionHeading from "../components/ui/SectionHeading.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import heroBuildingImg from "../assets/hero-building.png";
+import { trackAnalyticsEvent } from "../utils/analytics.js";
+import { trackPixelEvent } from "../utils/pixel.js";
+import CallbackModal from "../components/ui/CallbackModal.jsx";
 
 // Custom hook to animate number counts smoothly
 function useCountUp(target, duration = 1.5, trigger = true) {
@@ -80,6 +83,7 @@ export default function Home() {
   // UI Interactive States
   const [activeReviewIndex, setActiveReviewIndex] = useState(0);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [callbackOpen, setCallbackOpen] = useState(false);
 
   // Projects filter states
   const [typeFilter, setTypeFilter] = useState("All");
@@ -253,6 +257,15 @@ export default function Home() {
     if (contactSubject) formData.append("subject", contactSubject);
     if (contactProject) formData.append("interestedProject", contactProject);
 
+    // Capture UTM parameters from URL query string
+    const utms = new URLSearchParams(window.location.search);
+    const utmSrc = utms.get("utm_source");
+    const utmMed = utms.get("utm_medium");
+    const utmCam = utms.get("utm_campaign");
+    if (utmSrc) formData.append("utmSource", utmSrc);
+    if (utmMed) formData.append("utmMedium", utmMed);
+    if (utmCam) formData.append("utmCampaign", utmCam);
+
     attachments.forEach((att) => {
       formData.append("photos", att.fileObj);
     });
@@ -260,6 +273,10 @@ export default function Home() {
     try {
       const { data } = await submitContactForm(formData);
       if (data.success) {
+        // Trigger analytics tracking events
+        trackAnalyticsEvent("contact_form_submitted", "form", contactProject ? "project_enquiry" : "general");
+        trackPixelEvent("Lead", { content_name: contactProject ? "project_enquiry" : "general_contact", value: 1 });
+
         toast.success(data.message || "Thank you! Inquiry submitted successfully.");
         setContactName("");
         setContactEmail("");
@@ -441,6 +458,15 @@ export default function Home() {
               <a href="#contact">
                 <Button variant="outlineWhite">Contact Sales</Button>
               </a>
+              <Button
+                variant="outlineWhite"
+                onClick={() => {
+                  trackAnalyticsEvent("phone_number_clicked", "click", "home_hero_callback");
+                  setCallbackOpen(true);
+                }}
+              >
+                Request Call Back 📞
+              </Button>
             </motion.div>
           </motion.div>
 
@@ -1030,6 +1056,11 @@ export default function Home() {
           </a>
         </div>
       </section>
+
+      <CallbackModal
+        isOpen={callbackOpen}
+        onClose={() => setCallbackOpen(false)}
+      />
     </>
   );
 }

@@ -8,6 +8,20 @@ import { useSiteSettings } from "../context/SiteSettingsContext.jsx";
 import Button from "../components/ui/Button.jsx";
 import Loader from "../components/ui/Loader.jsx";
 import Badge from "../components/ui/Badge.jsx";
+import { trackAnalyticsEvent } from "../utils/analytics.js";
+import { trackPixelEvent } from "../utils/pixel.js";
+import EMICalculator from "../components/EMICalculator.jsx";
+import CallbackModal from "../components/ui/CallbackModal.jsx";
+
+const getInitialLakhs = (priceStr) => {
+  if (!priceStr) return 25;
+  const match = priceStr.match(/(\d+(?:\.\d+)?)/);
+  if (match) {
+    const val = parseFloat(match[1]);
+    if (val > 0) return val;
+  }
+  return 25;
+};
 
 export default function ProjectDetail() {
   const settings = useSiteSettings();
@@ -18,6 +32,7 @@ export default function ProjectDetail() {
 
   // Lightbox index state
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [callbackOpen, setCallbackOpen] = useState(false);
 
   useEffect(() => {
     async function loadProjectDetails() {
@@ -29,6 +44,9 @@ export default function ProjectDetail() {
           if (data.data.coverImage?.url) {
             setActivePhotoUrl(data.data.coverImage.url);
           }
+          // Log tracking events
+          trackAnalyticsEvent("project_viewed", "view", slug);
+          trackPixelEvent("ViewContent", { content_name: slug, content_category: "project" });
         }
       } catch (err) {
         console.error("Failed to load project details:", err);
@@ -247,8 +265,20 @@ export default function ProjectDetail() {
                 </div>
               </div>
 
+              {/* EMI Affordability Calculator */}
+              <EMICalculator
+                initialAmountLakhs={getInitialLakhs(project.startingPrice)}
+                onEnquireClick={() => {
+                  trackAnalyticsEvent("phone_number_clicked", "click", `emi_nudge_${slug}`);
+                  const element = document.getElementById("enquiry-box");
+                  if (element) {
+                    element.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
+              />
+
               {/* Sticky Enquiry Box CTA */}
-              <div className="bg-gradient-to-tr from-[#2E2A26] to-[#3D3732] text-white rounded-2xl p-5 border border-amber-900/10 shadow-sm flex flex-col gap-4 text-center items-center">
+              <div id="enquiry-box" className="bg-gradient-to-tr from-[#2E2A26] to-[#3D3732] text-white rounded-2xl p-5 border border-amber-900/10 shadow-sm flex flex-col gap-4 text-center items-center">
                 <div>
                   <h4 className="font-bold text-xs uppercase tracking-wider text-amber-400">Interested in {project.title}?</h4>
                   <p className="text-[10px] text-[#A3988F] mt-1 max-w-xs leading-relaxed">
@@ -260,6 +290,19 @@ export default function ProjectDetail() {
                     Enquire Now <FiPhone />
                   </Button>
                 </Link>
+
+                <div className="w-full border-t border-[#A3988F]/25 pt-3.5 mt-1 text-center">
+                  <span className="text-[10px] text-[#A3988F] block mb-2">Prefer we call you instead?</span>
+                  <button
+                    onClick={() => {
+                      trackAnalyticsEvent("phone_number_clicked", "click", `project_callback_btn_${slug}`);
+                      setCallbackOpen(true);
+                    }}
+                    className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline flex items-center justify-center gap-1.5 w-full focus:outline-none"
+                  >
+                    Request a Call Back 📞
+                  </button>
+                </div>
               </div>
 
             </div>
@@ -288,6 +331,13 @@ export default function ProjectDetail() {
 
         </div>
       </section>
+
+      <CallbackModal
+        isOpen={callbackOpen}
+        onClose={() => setCallbackOpen(false)}
+        projectId={project._id}
+        projectTitle={project.title}
+      />
     </>
   );
 }

@@ -38,11 +38,16 @@ const AdminUsers        = lazy(() => import("./admin/pages/AdminUsers.jsx"));
 
 const ADMIN_SLUG = import.meta.env.VITE_ADMIN_SLUG || "/secure-panel-x9k2";
 
+import { trackPageView } from "./utils/analytics.js";
+
 // Component to handle smooth scroll on hash links across routes
 function ScrollToHash() {
   const { hash, pathname } = useLocation();
 
   useEffect(() => {
+    // Track Pageview on GA4
+    trackPageView(pathname + hash);
+
     if (hash) {
       const element = document.getElementById(hash.slice(1));
       if (element) {

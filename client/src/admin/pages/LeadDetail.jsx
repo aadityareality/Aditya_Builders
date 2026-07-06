@@ -245,6 +245,24 @@ export default function LeadDetail() {
               <span className="font-bold">Source:</span>
               <span>{lead.source || "Website Contact Form"}</span>
             </div>
+            {lead.utmSource && (
+              <div className="flex items-center gap-2 text-[#6B625A] mt-1 flex-wrap">
+                <span className="font-bold">UTM Source:</span>
+                <span className="bg-amber-50 px-2 py-0.5 border border-amber-100 rounded text-[#E8871E] font-semibold">{lead.utmSource}</span>
+              </div>
+            )}
+            {lead.utmMedium && (
+              <div className="flex items-center gap-2 text-[#6B625A] flex-wrap">
+                <span className="font-bold">UTM Medium:</span>
+                <span className="bg-amber-50 px-2 py-0.5 border border-amber-100 rounded text-[#E8871E] font-semibold">{lead.utmMedium}</span>
+              </div>
+            )}
+            {lead.utmCampaign && (
+              <div className="flex items-center gap-2 text-[#6B625A] flex-wrap">
+                <span className="font-bold">UTM Campaign:</span>
+                <span className="bg-amber-50 px-2 py-0.5 border border-amber-100 rounded text-[#E8871E] font-semibold">{lead.utmCampaign}</span>
+              </div>
+            )}
           </div>
 
           {/* Update Workflow Form */}

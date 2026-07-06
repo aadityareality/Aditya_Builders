@@ -33,6 +33,8 @@ import publicTestimonialRoutes from "./routes/publicTestimonialRoutes.js";
 import publicTeamRoutes from "./routes/publicTeamRoutes.js";
 import publicSettingsRoutes from "./routes/publicSettingsRoutes.js";
 import publicContactRoutes from "./routes/publicContactRoutes.js";
+import publicCallbackRoutes from "./routes/publicCallbackRoutes.js";
+import adminCallbackRoutes from "./routes/adminCallbackRoutes.js";
 
 // ─── Error Middleware (must be imported BEFORE mounting, used AFTER routes) ────
 import { notFound, globalErrorHandler } from "./middleware/errorMiddleware.js";
@@ -152,6 +154,7 @@ app.use("/api/admin/team", adminTeamRoutes);
 app.use("/api/admin/settings", adminSettingsRoutes);
 app.use("/api/admin/admins", adminUserRoutes);
 app.use("/api/admin/upload", adminUploadRoutes);
+app.use("/api/admin/callback-requests", adminCallbackRoutes);
 
 // ── Public APIs ───────────────────────────────────────────────────────────────
 app.use("/api/projects", publicProjectRoutes);
@@ -160,6 +163,7 @@ app.use("/api/testimonials", publicTestimonialRoutes);
 app.use("/api/team", publicTeamRoutes);
 app.use("/api/settings", publicSettingsRoutes);
 app.use("/api/contact", publicContactRoutes);
+app.use("/api/callback-request", publicCallbackRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SERVING STATIC FRONTEND IN PRODUCTION

@@ -100,6 +100,23 @@ const contactInquirySchema = new Schema(
       default: "",
       trim: true,
     },
+
+    /** UTM Marketing source parameters details */
+    utmSource: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    utmMedium: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    utmCampaign: {
+      type: String,
+      default: null,
+      trim: true,
+    },
   },
   { timestamps: true }
 );
