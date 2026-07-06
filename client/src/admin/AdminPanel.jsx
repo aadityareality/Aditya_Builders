@@ -23,6 +23,72 @@ import {
 import toast from "react-hot-toast";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// COMPONENT: IMAGE UPLOAD FIELD (CLOUDINARY)
+// ─────────────────────────────────────────────────────────────────────────────
+function ImageUploadField({ label, value, onChange }) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      const { data } = await api.post("/admin/upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (data.success) {
+        onChange(data.url, data.publicId);
+        toast.success("Image uploaded successfully!");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "File upload failed");
+    } finally {
+      setUploadingState(false);
+    }
+  };
+
+  // Helper hook state manager wrapper
+  const setUploadingState = (state) => {
+    setUploading(state);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 text-left">
+      <label className="block text-xs font-bold text-[#6B625A] uppercase tracking-wider">{label}</label>
+      <div className="flex items-center gap-4 bg-[#FFFBF5]/20 p-3 rounded-xl border border-amber-100/50">
+        {value ? (
+          <div className="w-16 h-16 rounded-lg overflow-hidden border border-amber-100 bg-amber-50 shrink-0 shadow-sm">
+            <img src={value} alt="Preview" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="w-16 h-16 rounded-lg border-2 border-dashed border-amber-200 bg-amber-50/20 shrink-0 flex items-center justify-center text-xs text-[#6B625A]/50">
+            No Image
+          </div>
+        )}
+        <div className="flex-grow flex flex-col gap-1.5">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            disabled={uploading}
+            className="text-xs text-[#6B625A] file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-50 file:text-[#E8871E] hover:file:bg-amber-100 cursor-pointer"
+          />
+          {uploading ? (
+            <span className="text-[10px] text-[#F5A623] font-bold animate-pulse">Uploading file...</span>
+          ) : (
+            <span className="text-[9px] text-[#6B625A]/60">Supports JPG, PNG, WEBP (Max 5MB)</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN ADMIN PANEL WRAPPER
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminPanel() {
@@ -322,6 +388,7 @@ function ProjectsTab() {
     reraNumber: "",
     amenities: "",
     contactNumbers: "",
+    coverImage: { url: "", publicId: "" },
   });
 
   const loadProjects = async () => {
@@ -354,6 +421,7 @@ function ProjectsTab() {
       reraNumber: "",
       amenities: "",
       contactNumbers: "",
+      coverImage: { url: "", publicId: "" },
     });
     setFormMode(true);
   };
@@ -372,6 +440,7 @@ function ProjectsTab() {
       reraNumber: p.reraNumber || "",
       amenities: p.amenities?.join(", ") || "",
       contactNumbers: p.contactNumbers?.join(", ") || "",
+      coverImage: p.coverImage || { url: "", publicId: "" },
     });
     setFormMode(true);
   };
@@ -547,6 +616,14 @@ function ProjectsTab() {
           </div>
 
           <div>
+            <ImageUploadField
+              label="Project Cover Image"
+              value={formData.coverImage?.url}
+              onChange={(url, publicId) => setFormData({ ...formData, coverImage: { url, publicId } })}
+            />
+          </div>
+
+          <div>
             <label className="block text-xs font-bold text-[#6B625A] uppercase tracking-wider mb-2">Amenities (comma-separated)</label>
             <input
               type="text"
@@ -687,6 +764,7 @@ function GalleryTab() {
     title: "",
     category: "Other",
     imageUrl: "",
+    publicId: "",
     relatedProject: "",
   });
 
@@ -712,14 +790,14 @@ function GalleryTab() {
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.imageUrl) return toast.error("Image URL is required");
+    if (!formData.imageUrl) return toast.error("Image file is required");
 
     const payload = {
       title: formData.title,
       category: formData.category,
       image: {
         url: formData.imageUrl,
-        publicId: `seed/gallery-${Date.now()}`, // Temporary fallback publicId
+        publicId: formData.publicId || `manual/gallery-${Date.now()}`,
       },
       relatedProject: formData.relatedProject || null,
     };
@@ -728,7 +806,7 @@ function GalleryTab() {
       await api.post("/admin/gallery", payload);
       toast.success("Image added to gallery");
       setShowAddForm(false);
-      setFormData({ title: "", category: "Other", imageUrl: "", relatedProject: "" });
+      setFormData({ title: "", category: "Other", imageUrl: "", publicId: "", relatedProject: "" });
       loadGallery();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to add image");
@@ -791,14 +869,10 @@ function GalleryTab() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#6B625A] uppercase tracking-wider mb-2">Image URL</label>
-              <input
-                type="url"
-                required
+              <ImageUploadField
+                label="Gallery Photo Upload"
                 value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                placeholder="e.g. https://picsum.photos/..."
-                className="w-full px-4 py-3 rounded-xl border border-amber-100 focus:outline-none focus:border-[#F5A623] bg-[#FFFBF5]/20 text-sm"
+                onChange={(url, publicId) => setFormData({ ...formData, imageUrl: url, publicId })}
               />
             </div>
             <div>
@@ -1053,7 +1127,7 @@ function TeamTab() {
   const [team, setTeam] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({ name: "", designation: "", bio: "" });
+  const [formData, setFormData] = useState({ name: "", designation: "", bio: "", photoUrl: "", photoPublicId: "" });
 
   const loadTeam = async () => {
     setLoading(true);
@@ -1073,11 +1147,17 @@ function TeamTab() {
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    const payload = {
+      name: formData.name,
+      designation: formData.designation,
+      bio: formData.bio,
+      photo: formData.photoUrl ? { url: formData.photoUrl, publicId: formData.photoPublicId } : undefined,
+    };
     try {
-      await api.post("/admin/team", formData);
+      await api.post("/admin/team", payload);
       toast.success("Team member added");
       setShowAddForm(false);
-      setFormData({ name: "", designation: "", bio: "" });
+      setFormData({ name: "", designation: "", bio: "", photoUrl: "", photoPublicId: "" });
       loadTeam();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to add member");
@@ -1144,6 +1224,13 @@ function TeamTab() {
               className="w-full px-4 py-3 rounded-xl border border-amber-100 focus:outline-none focus:border-[#F5A623] bg-[#FFFBF5]/20 text-sm resize-none"
             />
           </div>
+          <div>
+            <ImageUploadField
+              label="Staff Photo Upload"
+              value={formData.photoUrl}
+              onChange={(url, publicId) => setFormData({ ...formData, photoUrl: url, photoPublicId: publicId })}
+            />
+          </div>
           <button type="submit" className="btn-primary w-max py-3 px-6 mt-2">
             Submit Member
           </button>
@@ -1195,6 +1282,8 @@ function SettingsTab() {
     phoneNumbers: "",
     email: "",
     instagramUrl: "",
+    logoUrl: "",
+    logoPublicId: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -1215,6 +1304,8 @@ function SettingsTab() {
             phoneNumbers: s.phoneNumbers?.join(", ") || "",
             email: s.email || "",
             instagramUrl: s.instagramUrl || "",
+            logoUrl: s.logo?.url || "",
+            logoPublicId: s.logo?.publicId || "",
           });
         }
       } catch {
@@ -1231,6 +1322,7 @@ function SettingsTab() {
     const payload = {
       ...formData,
       phoneNumbers: formData.phoneNumbers ? formData.phoneNumbers.split(",").map(i => i.trim()).filter(Boolean) : [],
+      logo: formData.logoUrl ? { url: formData.logoUrl, publicId: formData.logoPublicId } : undefined,
     };
 
     try {
@@ -1248,6 +1340,13 @@ function SettingsTab() {
       <h2 className="text-2xl font-bold font-display text-[#2E2A26] mb-6">CMS Settings Editor</h2>
 
       <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
+        <div>
+          <ImageUploadField
+            label="Brand Logo Upload"
+            value={formData.logoUrl}
+            onChange={(url, publicId) => setFormData({ ...formData, logoUrl: url, logoPublicId: publicId })}
+          />
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <label className="block text-xs font-bold text-[#6B625A] uppercase tracking-wider mb-2">Company Name</label>

@@ -99,6 +99,8 @@ app.get("/api/health", (_req, res) => {
 //     That URL is configured via VITE_ADMIN_SLUG in the client .env (Phase 1/6).
 app.use("/api/admin/auth",         authRoutes);
 
+import adminUploadRoutes     from "./routes/adminUploadRoutes.js";
+
 // ── Public API Route Imports ──────────────────────────────────────────────────
 import publicProjectRoutes from "./routes/publicProjectRoutes.js";
 import publicGalleryRoutes from "./routes/publicGalleryRoutes.js";
@@ -115,6 +117,7 @@ app.use("/api/admin/inquiries",    adminInquiryRoutes);
 app.use("/api/admin/team",         adminTeamRoutes);
 app.use("/api/admin/settings",     adminSettingsRoutes);
 app.use("/api/admin/admins",       adminUserRoutes);   // superadmin only
+app.use("/api/admin/upload",       adminUploadRoutes); // image upload handler
 
 // ── Public API routes (Phase 4) ───────────────────────────────────────────────
 app.use("/api/projects",     publicProjectRoutes);

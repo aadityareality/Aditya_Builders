@@ -9,8 +9,13 @@ import { Resend } from "resend";
  *   import resendClient from "../config/resend.js";
  *   await resendClient.emails.send({ from, to, subject, html });
  */
-const resendClient = new Resend(process.env.RESEND_API_KEY);
+const apiKey = process.env.RESEND_API_KEY || "re_development_dummy_key";
+const resendClient = new Resend(apiKey);
 
-console.log("📧 Resend client initialised");
+if (!process.env.RESEND_API_KEY) {
+  console.log("📧 Resend initialized in fallback development mode (dummy key)");
+} else {
+  console.log("📧 Resend client initialised");
+}
 
 export default resendClient;
