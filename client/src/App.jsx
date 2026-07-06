@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { HelmetProvider } from "react-helmet-async";
@@ -8,7 +8,7 @@ import { SiteSettingsProvider } from "./context/SiteSettingsContext.jsx";
 // Public Layout Wrapper
 import Layout from "./components/layout/Layout.jsx";
 
-// Public pages
+// Public pages (Eager loaded for immediate access by prospective buyers)
 import Home          from "./pages/Home.jsx";
 import About         from "./pages/About.jsx";
 import Projects      from "./pages/Projects.jsx";
@@ -17,21 +17,24 @@ import Gallery       from "./pages/Gallery.jsx";
 import Contact       from "./pages/Contact.jsx";
 import NotFound      from "./pages/NotFound.jsx";
 
-// Admin CMS Components & Routing Layout
-import AdminLayout         from "./admin/AdminLayout.jsx";
-import ProtectedAdminRoute from "./admin/components/ProtectedAdminRoute.jsx";
+// Loader UI component
+import Loader from "./components/ui/Loader.jsx";
+
+// Admin CMS Components & Routing Layout (Lazy loaded to separate administration assets)
+const AdminLayout         = lazy(() => import("./admin/AdminLayout.jsx"));
+const ProtectedAdminRoute = lazy(() => import("./admin/components/ProtectedAdminRoute.jsx"));
 
 // Admin CMS Pages
-import AdminLogin        from "./admin/pages/AdminLogin.jsx";
-import Leads             from "./admin/pages/Leads.jsx";
-import LeadDetail        from "./admin/pages/LeadDetail.jsx";
-import AdminProjects     from "./admin/pages/AdminProjects.jsx";
-import ProjectForm       from "./admin/pages/ProjectForm.jsx";
-import AdminTestimonials from "./admin/pages/AdminTestimonials.jsx";
-import AdminGallery      from "./admin/pages/AdminGallery.jsx";
-import AdminTeam         from "./admin/pages/AdminTeam.jsx";
-import AdminSettings     from "./admin/pages/AdminSettings.jsx";
-import AdminUsers        from "./admin/pages/AdminUsers.jsx";
+const AdminLogin        = lazy(() => import("./admin/pages/AdminLogin.jsx"));
+const Leads             = lazy(() => import("./admin/pages/Leads.jsx"));
+const LeadDetail        = lazy(() => import("./admin/pages/LeadDetail.jsx"));
+const AdminProjects     = lazy(() => import("./admin/pages/AdminProjects.jsx"));
+const ProjectForm       = lazy(() => import("./admin/pages/ProjectForm.jsx"));
+const AdminTestimonials = lazy(() => import("./admin/pages/AdminTestimonials.jsx"));
+const AdminGallery      = lazy(() => import("./admin/pages/AdminGallery.jsx"));
+const AdminTeam         = lazy(() => import("./admin/pages/AdminTeam.jsx"));
+const AdminSettings     = lazy(() => import("./admin/pages/AdminSettings.jsx"));
+const AdminUsers        = lazy(() => import("./admin/pages/AdminUsers.jsx"));
 
 const ADMIN_SLUG = import.meta.env.VITE_ADMIN_SLUG || "/secure-panel-x9k2";
 
@@ -58,6 +61,15 @@ function ScrollToHash() {
 }
 
 export default function App() {
+  const adminSuspenseFallback = (
+    <div className="flex flex-col gap-3 justify-center items-center h-screen bg-[#FFFBF5] text-[#6B625A]">
+      <Loader size="md" />
+      <span className="text-[10px] font-bold uppercase tracking-widest text-[#E8871E] animate-pulse">
+        Loading Panel Assets...
+      </span>
+    </div>
+  );
+
   return (
     <HelmetProvider>
       <BrowserRouter>
@@ -96,27 +108,111 @@ export default function App() {
                 <Route path="*"                element={<NotFound />} />
               </Route>
 
-              {/* ── Hidden Admin Panel (nested layout routes) ───────────────── */}
-              <Route path={ADMIN_SLUG} element={<AdminLayout />}>
+              {/* ── Hidden Admin Panel (nested layout routes with Suspense) ── */}
+              <Route
+                path={ADMIN_SLUG}
+                element={
+                  <Suspense fallback={adminSuspenseFallback}>
+                    <AdminLayout />
+                  </Suspense>
+                }
+              >
                 {/* Public within admin tree: login page */}
                 <Route path="login" element={<AdminLogin />} />
 
                 {/* Secure pages */}
-                <Route index element={<ProtectedAdminRoute><Navigate to={`${ADMIN_SLUG}/leads`} replace /></ProtectedAdminRoute>} />
-                <Route path="leads" element={<ProtectedAdminRoute><Leads /></ProtectedAdminRoute>} />
-                <Route path="leads/:id" element={<ProtectedAdminRoute><LeadDetail /></ProtectedAdminRoute>} />
+                <Route
+                  index
+                  element={
+                    <ProtectedAdminRoute>
+                      <Navigate to={`${ADMIN_SLUG}/leads`} replace />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="leads"
+                  element={
+                    <ProtectedAdminRoute>
+                      <Leads />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="leads/:id"
+                  element={
+                    <ProtectedAdminRoute>
+                      <LeadDetail />
+                    </ProtectedAdminRoute>
+                  }
+                />
                 
-                <Route path="projects" element={<ProtectedAdminRoute><AdminProjects /></ProtectedAdminRoute>} />
-                <Route path="projects/new" element={<ProtectedAdminRoute><ProjectForm /></ProtectedAdminRoute>} />
-                <Route path="projects/:id/edit" element={<ProtectedAdminRoute><ProjectForm /></ProtectedAdminRoute>} />
+                <Route
+                  path="projects"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminProjects />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="projects/new"
+                  element={
+                    <ProtectedAdminRoute>
+                      <ProjectForm />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="projects/:id/edit"
+                  element={
+                    <ProtectedAdminRoute>
+                      <ProjectForm />
+                    </ProtectedAdminRoute>
+                  }
+                />
                 
-                <Route path="testimonials" element={<ProtectedAdminRoute><AdminTestimonials /></ProtectedAdminRoute>} />
-                <Route path="gallery" element={<ProtectedAdminRoute><AdminGallery /></ProtectedAdminRoute>} />
-                <Route path="team" element={<ProtectedAdminRoute><AdminTeam /></ProtectedAdminRoute>} />
-                <Route path="settings" element={<ProtectedAdminRoute><AdminSettings /></ProtectedAdminRoute>} />
+                <Route
+                  path="testimonials"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminTestimonials />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="gallery"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminGallery />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="team"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminTeam />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="settings"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminSettings />
+                    </ProtectedAdminRoute>
+                  }
+                />
                 
                 {/* Superadmin restricted page */}
-                <Route path="admins" element={<ProtectedAdminRoute requireSuperadmin><AdminUsers /></ProtectedAdminRoute>} />
+                <Route
+                  path="admins"
+                  element={
+                    <ProtectedAdminRoute requireSuperadmin>
+                      <AdminUsers />
+                    </ProtectedAdminRoute>
+                  }
+                />
 
                 {/* Catch-all within admin panel, redirect to leads inbox */}
                 <Route path="*" element={<Navigate to={`${ADMIN_SLUG}/leads`} replace />} />

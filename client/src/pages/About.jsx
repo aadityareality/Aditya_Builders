@@ -61,6 +61,20 @@ export default function About() {
           name="description"
           content={`Learn about the journey and values of ${settings.companyName}. Based in Bhavnagar, Gujarat with ${settings.yearsOfExperience} years of construction excellence.`}
         />
+        <link rel="canonical" href={`${window.location.origin}/about`} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`About Us | ${settings.companyName}`} />
+        <meta property="og:description" content={`Learn about the journey and values of ${settings.companyName} in Bhavnagar, Gujarat.`} />
+        <meta property="og:image" content={window.location.origin + "/logo.jpg"} />
+        <meta property="og:url" content={`${window.location.origin}/about`} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`About Us | ${settings.companyName}`} />
+        <meta name="twitter:description" content={`Learn about the construction excellence of ${settings.companyName} in Bhavnagar.`} />
+        <meta name="twitter:image" content={window.location.origin + "/logo.jpg"} />
       </Helmet>
 
       {/* ─── Page Title Banner ─── */}
@@ -193,6 +207,7 @@ export default function About() {
                       src={member.photo?.url || "https://placehold.co/100/FAC354/FFFFFF?text=Staff"}
                       alt={member.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   </div>
                   <h3 className="font-bold text-sm text-[#2E2A26]">{member.name}</h3>

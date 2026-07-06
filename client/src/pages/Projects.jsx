@@ -53,6 +53,20 @@ export default function Projects() {
           name="description"
           content={`Browse residential and commercial layouts from ${settings.companyName} in Bhavnagar, Gujarat. Ongoing, Completed and Upcoming properties.`}
         />
+        <link rel="canonical" href={`${window.location.origin}/projects`} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`Residential & Commercial Projects | ${settings.companyName}`} />
+        <meta property="og:description" content={`Browse residential and commercial layouts from ${settings.companyName} in Bhavnagar, Gujarat.`} />
+        <meta property="og:image" content={window.location.origin + "/logo.jpg"} />
+        <meta property="og:url" content={`${window.location.origin}/projects`} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`Residential & Commercial Projects | ${settings.companyName}`} />
+        <meta name="twitter:description" content={`Explore properties from ${settings.companyName} in Bhavnagar, Gujarat.`} />
+        <meta name="twitter:image" content={window.location.origin + "/logo.jpg"} />
       </Helmet>
 
       {/* Title Banner */}
@@ -155,6 +169,7 @@ export default function Projects() {
                           src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
                           alt={p.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                         <Badge status={p.status} className="absolute top-3 left-3 shadow-sm" />
                       </div>

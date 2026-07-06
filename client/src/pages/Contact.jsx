@@ -171,6 +171,20 @@ export default function Contact() {
           name="description"
           content={`Get in touch with ${settings.companyName} at Bhavnagar, Gujarat. Schedule site visits, enquire about price lists, or upload reference photo templates.`}
         />
+        <link rel="canonical" href={`${window.location.origin}/contact`} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`Contact Sales & Support | ${settings.companyName}`} />
+        <meta property="og:description" content={`Get in touch with ${settings.companyName} in Bhavnagar, Gujarat. Schedule site visits or enquire about price lists.`} />
+        <meta property="og:image" content={window.location.origin + "/logo.jpg"} />
+        <meta property="og:url" content={`${window.location.origin}/contact`} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`Contact Sales & Support | ${settings.companyName}`} />
+        <meta name="twitter:description" content={`Enquire about residential and commercial sites by ${settings.companyName} in Bhavnagar.`} />
+        <meta name="twitter:image" content={window.location.origin + "/logo.jpg"} />
       </Helmet>
 
       {/* Title Banner */}

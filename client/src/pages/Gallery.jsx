@@ -62,6 +62,20 @@ export default function Gallery() {
           name="description"
           content={`Browse photos of interior designs, exterior finishes, construction site progress, and completed layout locations by ${settings.companyName} in Bhavnagar, Gujarat.`}
         />
+        <link rel="canonical" href={`${window.location.origin}/gallery`} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`Portfolio Gallery Showcase | ${settings.companyName}`} />
+        <meta property="og:description" content={`Browse photos of interior designs, exterior finishes, and construction site progress in Bhavnagar, Gujarat.`} />
+        <meta property="og:image" content={window.location.origin + "/logo.jpg"} />
+        <meta property="og:url" content={`${window.location.origin}/gallery`} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`Portfolio Gallery Showcase | ${settings.companyName}`} />
+        <meta name="twitter:description" content={`Browse completed projects album and construction sites by ${settings.companyName}.`} />
+        <meta name="twitter:image" content={window.location.origin + "/logo.jpg"} />
       </Helmet>
 
       {/* Lightbox Modal */}

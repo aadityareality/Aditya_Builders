@@ -299,6 +299,60 @@ export default function Home() {
           name="description"
           content={`Welcome to ${settings.companyName}. ${settings.tagline}. Leading construction company in Bhavnagar, Gujarat with over ${settings.yearsOfExperience} years of experience and ${settings.happyCustomers}+ satisfied customers.`}
         />
+        <link rel="canonical" href={window.location.origin} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`${settings.companyName} | Premium Real Estate & Construction Bhavnagar`} />
+        <meta property="og:description" content={`Welcome to ${settings.companyName}. ${settings.tagline}. Leading property developer in Bhavnagar, Gujarat.`} />
+        <meta property="og:image" content={window.location.origin + "/logo.jpg"} />
+        <meta property="og:url" content={window.location.origin} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${settings.companyName} | Premium Real Estate`} />
+        <meta name="twitter:description" content={`Welcome to ${settings.companyName}. Leading construction company in Bhavnagar, Gujarat.`} />
+        <meta name="twitter:image" content={window.location.origin + "/logo.jpg"} />
+
+        {/* Structured Data (JSON-LD) */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "RealEstateAgent",
+            "name": settings.companyName || "Aditya Builders",
+            "image": window.location.origin + "/logo.jpg",
+            "description": settings.aboutUsShort || "Leading property developer and construction company in Bhavnagar, Gujarat.",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": settings.address || "Jewels Circle",
+              "addressLocality": "Bhavnagar",
+              "addressRegion": "Gujarat",
+              "postalCode": "364001",
+              "addressCountry": "IN"
+            },
+            "geo": settings.mapLatitude && settings.mapLongitude ? {
+              "@type": "GeoCoordinates",
+              "latitude": settings.mapLatitude,
+              "longitude": settings.mapLongitude
+            } : undefined,
+            "telephone": settings.phoneNumbers?.[0] || "",
+            "url": window.location.origin,
+            "priceRange": "₹₹",
+            "openingHoursSpecification": {
+              "@type": "OpeningHoursSpecification",
+              "dayOfWeek": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday"
+              ],
+              "opens": "09:00",
+              "closes": "19:00"
+            }
+          })}
+        </script>
       </Helmet>
 
       {/* Lightbox Overlay */}
@@ -588,6 +642,7 @@ export default function Home() {
                           src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
                           alt={p.title}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                         <Badge status={p.status} className="absolute top-3 left-3 shadow-sm" />
                       </div>

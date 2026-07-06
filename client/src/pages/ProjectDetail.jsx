@@ -79,6 +79,43 @@ export default function ProjectDetail() {
           name="description"
           content={`Explore details, amenities, configuration, and floor designs for ${project.title} located at ${project.location} in Bhavnagar, Gujarat.`}
         />
+        <link rel="canonical" href={`${window.location.origin}/projects/${slug}`} />
+        
+        {/* Open Graph Meta Tags */}
+        <meta property="og:title" content={`${project.title} | Projects | ${settings.companyName}`} />
+        <meta property="og:description" content={`Explore details, configuration and amenities for ${project.title} in Bhavnagar, Gujarat.`} />
+        <meta property="og:image" content={project.coverImage?.url || ""} />
+        <meta property="og:url" content={`${window.location.origin}/projects/${slug}`} />
+        <meta property="og:type" content="website" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${project.title} | ${settings.companyName}`} />
+        <meta name="twitter:description" content={`Explore details and designs for ${project.title} in Bhavnagar, Gujarat.`} />
+        <meta name="twitter:image" content={project.coverImage?.url || ""} />
+
+        {/* Structured Data (JSON-LD) */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "RealEstateListing",
+            "name": project.title,
+            "description": project.description,
+            "image": project.coverImage?.url || "",
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": project.location,
+              "addressLocality": "Bhavnagar",
+              "addressRegion": "Gujarat",
+              "addressCountry": "IN"
+            },
+            "offers": {
+              "@type": "AggregateOffer",
+              "priceCurrency": "INR",
+              "lowPrice": project.startingPrice || "Contact for Price"
+            }
+          })}
+        </script>
       </Helmet>
 
       {/* Lightbox Modal */}

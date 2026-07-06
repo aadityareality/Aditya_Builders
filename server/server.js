@@ -5,9 +5,15 @@ import helmet from "helmet";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import rateLimit from "express-rate-limit";
+import mongoSanitize from "express-mongo-sanitize";
+import hpp from "hpp";
+import path from "path";
 
 import connectDB from "./config/db.js";
 import { configureCloudinary } from "./config/cloudinary.js";
+
+// ─── Health Check Router ──────────────────────────────────────────────────────
+import healthRoutes from "./routes/healthRoutes.js";
 
 // ─── Admin Route Imports ───────────────────────────────────────────────────────
 import authRoutes from "./routes/authRoutes.js";
@@ -18,6 +24,15 @@ import adminInquiryRoutes from "./routes/adminInquiryRoutes.js";
 import adminTeamRoutes from "./routes/adminTeamRoutes.js";
 import adminSettingsRoutes from "./routes/adminSettingsRoutes.js";
 import adminUserRoutes from "./routes/adminUserRoutes.js";
+import adminUploadRoutes from "./routes/adminUploadRoutes.js";
+
+// ─── Public API Route Imports ──────────────────────────────────────────────────
+import publicProjectRoutes from "./routes/publicProjectRoutes.js";
+import publicGalleryRoutes from "./routes/publicGalleryRoutes.js";
+import publicTestimonialRoutes from "./routes/publicTestimonialRoutes.js";
+import publicTeamRoutes from "./routes/publicTeamRoutes.js";
+import publicSettingsRoutes from "./routes/publicSettingsRoutes.js";
+import publicContactRoutes from "./routes/publicContactRoutes.js";
 
 // ─── Error Middleware (must be imported BEFORE mounting, used AFTER routes) ────
 import { notFound, globalErrorHandler } from "./middleware/errorMiddleware.js";
@@ -32,13 +47,51 @@ connectDB();
 // ─── Configure Third-Party Services ───────────────────────────────────────────
 configureCloudinary();
 
-// ─── Security Middleware ───────────────────────────────────────────────────────
-app.use(helmet());
+// ─── Security Middleware: Helmet with customized CSP ────────────────────────
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+        connectSrc: [
+          "'self'",
+          "https://res.cloudinary.com",
+          "https://api.cloudinary.com",
+          process.env.CLIENT_URL || "http://localhost:5173",
+          "http://localhost:5173",
+          "http://localhost:5000",
+        ],
+        mediaSrc: ["'self'", "https://res.cloudinary.com"],
+      },
+    },
+  })
+);
 
-// ─── CORS ─────────────────────────────────────────────────────────────────────
+// ─── CORS: Restricted to CLIENT_URL in prod ──────────────────────────────────
+const productionOrigin = process.env.CLIENT_URL;
+const developmentOrigins = ["http://localhost:5173", "http://localhost:5000"];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
+
+      const isProduction = process.env.NODE_ENV === "production";
+      const allowedOrigins = isProduction
+        ? [productionOrigin].filter(Boolean)
+        : [productionOrigin, ...developmentOrigins].filter(Boolean);
+
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS request blocked: Origin not authorized for environment."));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -50,24 +103,28 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
-// ─── Body Parsing ─────────────────────────────────────────────────────────────
+// ─── Body Parsing & Sanitization ─────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
+// Strips MongoDB operator injections (such as $gt, $where, etc.)
+app.use(mongoSanitize());
+
+// HTTP Parameter Pollution protection
+app.use(hpp());
+
 // ─── Global Rate Limiter (all routes) ─────────────────────────────────────────
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
+  windowMs: 15 * 60 * 1000, // 15 mins
+  max: 100, // 100 reqs limit
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: "Too many requests. Please try again later." },
+  message: { success: false, message: "Too many requests from this IP. Please try again later." },
 });
 app.use(globalLimiter);
 
 // ─── Stricter Rate Limiter (exported for use on specific routes) ──────────────
-// Note: The login-specific 5-req/15-min limiter is applied in authRoutes.js.
-// This export remains available for any other sensitive routes added later.
 export const strictLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
@@ -80,46 +137,23 @@ export const strictLimiter = rateLimit({
 // ROUTES
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Public health check ───────────────────────────────────────────────────────
-app.get("/api/health", (_req, res) => {
-  res.status(200).json({
-    status: "ok",
-    service: "Aditya Builders API",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-  });
-});
+// ── Health Check ─────────────────────────────────────────────────────────────
+app.use("/api/health", healthRoutes);
 
 // ── Admin Auth ────────────────────────────────────────────────────────────────
-// Note on security layering:
-//   - These /api/admin/* routes are intentionally predictable — real security
-//     comes from JWT authentication, not route obscurity.
-//   - The CLIENT-SIDE admin panel URL (e.g. /secure-panel-x9k2) is a separate
-//     concern: it must remain unlinked from all public nav/footer/sitemaps.
-//     That URL is configured via VITE_ADMIN_SLUG in the client .env (Phase 1/6).
 app.use("/api/admin/auth", authRoutes);
 
-import adminUploadRoutes from "./routes/adminUploadRoutes.js";
-
-// ── Public API Route Imports ──────────────────────────────────────────────────
-import publicProjectRoutes from "./routes/publicProjectRoutes.js";
-import publicGalleryRoutes from "./routes/publicGalleryRoutes.js";
-import publicTestimonialRoutes from "./routes/publicTestimonialRoutes.js";
-import publicTeamRoutes from "./routes/publicTeamRoutes.js";
-import publicSettingsRoutes from "./routes/publicSettingsRoutes.js";
-import publicContactRoutes from "./routes/publicContactRoutes.js";
-
-// ── Admin Resource APIs (all protected by protect middleware in each router) ───
+// ── Admin Resource APIs (protected) ───────────────────────────────────────────
 app.use("/api/admin/projects", adminProjectRoutes);
 app.use("/api/admin/gallery", adminGalleryRoutes);
 app.use("/api/admin/testimonials", adminTestimonialRoutes);
 app.use("/api/admin/inquiries", adminInquiryRoutes);
 app.use("/api/admin/team", adminTeamRoutes);
 app.use("/api/admin/settings", adminSettingsRoutes);
-app.use("/api/admin/admins", adminUserRoutes);   // superadmin only
-app.use("/api/admin/upload", adminUploadRoutes); // image upload handler
+app.use("/api/admin/admins", adminUserRoutes);
+app.use("/api/admin/upload", adminUploadRoutes);
 
-// ── Public API routes (Phase 4) ───────────────────────────────────────────────
+// ── Public APIs ───────────────────────────────────────────────────────────────
 app.use("/api/projects", publicProjectRoutes);
 app.use("/api/gallery", publicGalleryRoutes);
 app.use("/api/testimonials", publicTestimonialRoutes);
@@ -128,7 +162,22 @@ app.use("/api/settings", publicSettingsRoutes);
 app.use("/api/contact", publicContactRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ERROR HANDLING — Must be mounted LAST, after all routes
+// SERVING STATIC FRONTEND IN PRODUCTION
+// ─────────────────────────────────────────────────────────────────────────────
+if (process.env.NODE_ENV === "production") {
+  const __dirname = path.resolve();
+  // Serve built static assets from Vite client build
+  app.use(express.static(path.join(__dirname, "../client/dist")));
+
+  // Any non-API route gets served the client index.html
+  app.get("*", (req, res, next) => {
+    if (req.originalUrl.startsWith("/api")) return next();
+    res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ERROR HANDLING — Must be mounted LAST
 // ─────────────────────────────────────────────────────────────────────────────
 app.use(notFound);
 app.use(globalErrorHandler);
@@ -139,7 +188,7 @@ app.listen(PORT, () => {
     `🚀 Aditya Builders API running on port ${PORT} [${process.env.NODE_ENV || "development"}]`
   );
   console.log(`   Admin API base: /api/admin/*`);
-  console.log(`   Health check:   http://localhost:${PORT}/api/health`);
+  console.log(`   Health check:   /api/health`);
 });
 
 export default app;
