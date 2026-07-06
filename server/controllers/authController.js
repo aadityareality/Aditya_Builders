@@ -101,12 +101,13 @@ export const loginAdmin = [
 // POST /api/admin/auth/logout
 // ─────────────────────────────────────────────────────────────────────────────
 export const logoutAdmin = (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production";
   // Clear the cookie by setting it to expire immediately
   res.cookie("admin_token", "", {
     httpOnly: true,
     expires:  new Date(0),
-    secure:   process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure:   isProduction,
+    sameSite: isProduction ? "none" : "strict",
   });
 
   res.status(200).json({ success: true, message: "Logged out successfully" });
@@ -160,11 +161,12 @@ export const changePassword = [
     await admin.save();
 
     // Invalidate existing cookie — force re-login with new password
+    const isProduction = process.env.NODE_ENV === "production";
     res.cookie("admin_token", "", {
       httpOnly: true,
       expires:  new Date(0),
-      secure:   process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure:   isProduction,
+      sameSite: isProduction ? "none" : "strict",
     });
 
     res.status(200).json({

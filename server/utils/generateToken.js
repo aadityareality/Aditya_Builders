@@ -41,10 +41,14 @@ export const generateToken = (adminId) => {
 export const sendTokenCookie = (res, token) => {
   const maxAge = parseExpiry(process.env.JWT_EXPIRES_IN || "7d");
 
+  const isProduction = process.env.NODE_ENV === "production";
+
   res.cookie("admin_token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    secure: isProduction,
+    // "none" required for cross-domain cookies (Vercel frontend → Render backend)
+    // "strict" is fine for local dev (same origin)
+    sameSite: isProduction ? "none" : "strict",
     maxAge,
   });
 };
