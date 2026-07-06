@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-const domain = "https://adityabuilders.in";
+const domain = "https://aditya-builders-dz-infotech.vercel.app";
 const staticPages = [
   "",
   "/about",

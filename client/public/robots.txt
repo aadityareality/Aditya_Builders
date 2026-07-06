@@ -2,4 +2,4 @@ User-agent: *
 Disallow: /secure-panel-x9k2/
 Disallow: /api/
 
-Sitemap: https://adityabuilders.in/sitemap.xml
+Sitemap: https://aditya-builders-dz-infotech.vercel.app/sitemap.xml
