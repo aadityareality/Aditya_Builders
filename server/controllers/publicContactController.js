@@ -63,6 +63,17 @@ export const createInquiry = [
     // Source defaults to 'Project Enquiry' if project ID is provided, else 'Website Contact Form'
     const source = interestedProject ? "Project Enquiry" : "Website Contact Form";
 
+    // Map photo attachments if any exist
+    const attachments = [];
+    if (req.files && Array.isArray(req.files)) {
+      req.files.forEach((file) => {
+        attachments.push({
+          url: file.path,
+          publicId: file.filename || file.public_id || `upload-${Date.now()}`,
+        });
+      });
+    }
+
     const inquiry = await ContactInquiry.create({
       name,
       email,
@@ -72,6 +83,7 @@ export const createInquiry = [
       interestedProject: interestedProject || null,
       status: "New",
       source,
+      attachments,
     });
 
     // Call asynchronous stub service (logs to console for Phase 4)

@@ -82,6 +82,17 @@ const contactInquirySchema = new Schema(
       enum: ["Website Contact Form", "Project Enquiry", "Other"],
       default: "Website Contact Form",
     },
+
+    /** Optional photo attachments of site / plots / floor plans */
+    attachments: {
+      type: [
+        {
+          url: { type: String, required: true },
+          publicId: { type: String, required: true },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );
