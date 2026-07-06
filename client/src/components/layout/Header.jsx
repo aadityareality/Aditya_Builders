@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiMenu, FiX, FiPhone, FiInstagram } from "react-icons/fi";
+import { FiMenu, FiX, FiInstagram } from "react-icons/fi";
 import { useSiteSettings } from "../../context/SiteSettingsContext.jsx";
 import logoImg from "../../assets/logo.jpg";
 
@@ -9,10 +9,45 @@ export default function Header() {
   const settings = useSiteSettings();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("home");
 
   // Close menu on navigation
   useEffect(() => {
     setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // High performance Scrollspy with IntersectionObserver
+  useEffect(() => {
+    if (location.pathname !== "/") return;
+
+    const sections = ["home", "about", "projects", "gallery", "contact"];
+    const observerOptions = {
+      root: null,
+      rootMargin: "-30% 0px -60% 0px", // Trigger when section occupies the upper-middle region of screen
+      threshold: 0,
+    };
+
+    const observerCallback = (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setActiveSection(entry.target.id);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    sections.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      sections.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) observer.unobserve(el);
+      });
+    };
   }, [location.pathname]);
 
   const navLinks = [
@@ -25,7 +60,6 @@ export default function Header() {
 
   return (
     <>
-
       {/* Header element */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-amber-100/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
@@ -47,10 +81,12 @@ export default function Header() {
           {/* Desktop Navigation Link items */}
           <nav className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => {
-              const isActive =
-                link.path === "/#home"
-                  ? location.hash === "#home" || (location.hash === "" && location.pathname === "/")
-                  : location.hash === link.path.substring(1);
+              const isHome = location.pathname === "/";
+              const targetHash = link.path.split("#")[1];
+              const isActive = isHome
+                ? activeSection === targetHash
+                : location.pathname.startsWith(link.path);
+
               return (
                 <Link
                   key={link.name}
@@ -105,10 +141,12 @@ export default function Header() {
             >
               <div className="flex flex-col gap-4">
                 {navLinks.map((link) => {
-                  const isActive =
-                    link.path === "/#home"
-                      ? location.hash === "#home" || (location.hash === "" && location.pathname === "/")
-                      : location.hash === link.path.substring(1);
+                  const isHome = location.pathname === "/";
+                  const targetHash = link.path.split("#")[1];
+                  const isActive = isHome
+                    ? activeSection === targetHash
+                    : location.pathname.startsWith(link.path);
+
                   return (
                     <Link
                       key={link.name}
