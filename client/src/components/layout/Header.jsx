@@ -55,13 +55,18 @@ export default function Header() {
                 <Link
                   key={link.name}
                   to={link.path}
-                  className={`text-xs font-bold tracking-wider uppercase transition-colors py-2 border-b-2 hover:text-[#F5A623] ${
-                    isActive
-                      ? "border-[#F5A623] text-[#F5A623]"
-                      : "border-transparent text-[#6B625A] hover:border-amber-200"
+                  className={`text-xs font-bold tracking-wider uppercase transition-colors py-2 relative hover:text-[#F5A623] ${
+                    isActive ? "text-[#F5A623]" : "text-[#6B625A]"
                   }`}
                 >
-                  {link.name}
+                  <span className="relative z-10">{link.name}</span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeNavUnderline"
+                      className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#F5A623] rounded-full"
+                      transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                    />
+                  )}
                 </Link>
               );
             })}
