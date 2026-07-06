@@ -17,14 +17,25 @@ const contactLimiter = rateLimit({
   },
 });
 
+import multer from "multer";
+
+const memoryUpload = multer();
+
 // Gracefully handle file uploads if Cloudinary is configured
 const handleUpload = (req, res, next) => {
   const hasCloudinary = process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_KEY.trim() !== "";
   if (!hasCloudinary) {
-    if (req.files || req.file) {
-      console.warn("⚠️ [Upload Middleware] Files provided but Cloudinary is not configured. Skipping attachments.");
-    }
-    return next();
+    // Fallback: parse multipart form fields using memory storage uploader so req.body is populated!
+    memoryUpload.any()(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: "Failed to parse contact form fields",
+        });
+      }
+      next();
+    });
+    return;
   }
 
   upload.array("photos", 5)(req, res, (err) => {
