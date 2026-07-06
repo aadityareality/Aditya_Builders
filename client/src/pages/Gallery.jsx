@@ -102,53 +102,66 @@ export default function Gallery() {
       <section className="py-16 bg-[#FFFBF5] text-left">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
-          {/* Category Filter Tabs */}
-          <div className="flex flex-wrap gap-2.5 justify-center mb-12 pb-8 border-b border-amber-100/60 select-none">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setCategoryFilter(cat);
-                  setDisplayCount(12);
-                }}
-                className="relative cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[#F5A623]"
-                style={{
-                  padding: "8px 20px",
-                  borderRadius: "999px",
-                  fontSize: "12px",
-                  fontWeight: "700",
-                  letterSpacing: "0.04em",
-                  border: categoryFilter === cat
-                    ? "1.5px solid transparent"
-                    : "1.5px solid rgba(245,166,35,0.3)",
-                  background: categoryFilter === cat
-                    ? "linear-gradient(135deg,#F5A623,#E8871E)"
-                    : "rgba(255,255,255,0.85)",
-                  color: categoryFilter === cat ? "#ffffff" : "#6B625A",
-                  boxShadow: categoryFilter === cat
-                    ? "0 4px 14px rgba(232,135,30,0.30)"
-                    : "0 1px 4px rgba(0,0,0,0.06)",
-                  transition: "all 0.2s ease",
-                  whiteSpace: "nowrap",
-                }}
-                onMouseEnter={(e) => {
-                  if (categoryFilter !== cat) {
-                    e.currentTarget.style.background = "rgba(245,166,35,0.1)";
-                    e.currentTarget.style.borderColor = "rgba(245,166,35,0.5)";
-                    e.currentTarget.style.color = "#E8871E";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (categoryFilter !== cat) {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.85)";
-                    e.currentTarget.style.borderColor = "rgba(245,166,35,0.3)";
-                    e.currentTarget.style.color = "#6B625A";
-                  }
-                }}
-              >
-                {cat}
-              </button>
-            ))}
+          {/* ── Premium Category Filter Bar ─────────────────────────── */}
+          <div className="flex justify-center mb-12 select-none">
+            <div
+              className="flex items-center gap-1 p-1.5 overflow-x-auto"
+              style={{
+                background: "rgba(245,166,35,0.08)",
+                border: "1px solid rgba(245,166,35,0.18)",
+                borderRadius: "16px",
+                maxWidth: "100%",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
+            >
+              {categories.map((cat) => {
+                const isActive = categoryFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setCategoryFilter(cat);
+                      setDisplayCount(12);
+                    }}
+                    style={{
+                      padding: "9px 20px",
+                      borderRadius: "10px",
+                      fontSize: "12.5px",
+                      fontWeight: isActive ? "700" : "600",
+                      whiteSpace: "nowrap",
+                      minWidth: "52px",
+                      cursor: "pointer",
+                      border: "none",
+                      outline: "none",
+                      transition: "all 0.22s cubic-bezier(0.4,0,0.2,1)",
+                      background: isActive
+                        ? "linear-gradient(135deg,#F5A623 0%,#E8871E 100%)"
+                        : "transparent",
+                      color: isActive ? "#ffffff" : "#7A6E65",
+                      boxShadow: isActive
+                        ? "0 4px 16px rgba(232,135,30,0.28), 0 1px 4px rgba(232,135,30,0.15)"
+                        : "none",
+                      letterSpacing: isActive ? "0.03em" : "0.02em",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = "rgba(245,166,35,0.12)";
+                        e.currentTarget.style.color = "#E8871E";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = "transparent";
+                        e.currentTarget.style.color = "#7A6E65";
+                      }
+                    }}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {loading ? (
