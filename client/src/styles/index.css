@@ -1,0 +1,131 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Aditya Builders — Global Stylesheet
+   Tailwind base → custom design tokens → global resets
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties (mirrors Tailwind theme for use in plain CSS) ─── */
+:root {
+  --color-primary:       #F5A623;
+  --color-primary-light: #FAC354;
+  --color-primary-dark:  #D4861A;
+
+  --color-secondary:       #E8871E;
+  --color-accent-blue:     #3B82C4;
+  --color-accent-red:      #D64545;
+
+  --color-bg:            #FFFBF5;
+  --color-bg-subtle:     #FFF6E8;
+  --color-text:          #2E2A26;
+  --color-text-muted:    #6B625A;
+
+  --font-sans:    "Inter", system-ui, sans-serif;
+  --font-display: "Outfit", "Inter", sans-serif;
+
+  --radius-card:  1rem;
+  --shadow-warm:  0 4px 24px 0 rgba(245, 166, 35, 0.15);
+  --shadow-card:  0 2px 16px 0 rgba(46, 42, 38, 0.08);
+}
+
+/* ─── Global Base ─────────────────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+/* ─── Scrollbar (subtle, brand-coloured) ─────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-subtle);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-dark);
+}
+
+/* ─── Utility Classes ─────────────────────────────────────────────────────── */
+@layer components {
+  /* Primary button */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white
+           transition-all duration-200 cursor-pointer select-none;
+    background-color: var(--color-primary);
+  }
+  .btn-primary:hover {
+    background-color: var(--color-primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-warm);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
+  }
+
+  /* Outline button */
+  .btn-outline {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold
+           border-2 transition-all duration-200 cursor-pointer select-none;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background-color: transparent;
+  }
+  .btn-outline:hover {
+    background-color: var(--color-primary);
+    color: white;
+  }
+
+  /* Section container */
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Card */
+  .card {
+    @apply rounded-xl overflow-hidden;
+    background-color: white;
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card:hover {
+    box-shadow: 0 8px 32px 0 rgba(46, 42, 38, 0.14);
+    transform: translateY(-2px);
+  }
+
+  /* Section heading */
+  .section-title {
+    @apply text-3xl sm:text-4xl font-bold mb-2;
+    font-family: var(--font-display);
+    color: var(--color-text);
+  }
+  .section-subtitle {
+    @apply text-lg mb-10;
+    color: var(--color-text-muted);
+  }
+
+  /* Gold underline accent */
+  .title-underline {
+    @apply block w-16 h-1 rounded-full mt-3 mb-6;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
+  }
+}

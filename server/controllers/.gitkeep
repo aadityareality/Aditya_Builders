@@ -1,0 +1,7 @@
+# Controllers will be added in Phase 2, one per resource.
+#
+# Planned controllers:
+#   - projectController.js
+#   - galleryController.js
+#   - contactController.js
+#   - authController.js

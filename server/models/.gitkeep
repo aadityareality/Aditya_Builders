@@ -1,0 +1,8 @@
+# Mongoose models will be added in Phase 2.
+# Each model file should use ES Module syntax (import/export).
+#
+# Planned models:
+#   - Project.js       (construction projects / listings)
+#   - GalleryImage.js  (gallery photos, stored via Cloudinary)
+#   - ContactLead.js   (contact form submissions)
+#   - AdminUser.js     (JWT-authenticated admin accounts)

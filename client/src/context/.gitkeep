@@ -1,0 +1,2 @@
+# React context providers will be added in Phase 2+.
+# Planned: AuthContext.jsx (admin auth state), ThemeContext.jsx (if needed)

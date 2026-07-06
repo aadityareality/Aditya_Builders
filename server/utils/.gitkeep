@@ -1,0 +1,7 @@
+# Utility helpers will be added in Phase 2+.
+#
+# Planned utilities:
+#   - generateToken.js     (JWT generation helper)
+#   - sendEmail.js         (Resend email wrapper)
+#   - apiResponse.js       (standardised API response formatter)
+#   - catchAsync.js        (async error wrapper for controllers)

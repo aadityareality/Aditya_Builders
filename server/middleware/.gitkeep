@@ -1,0 +1,6 @@
+# Middleware will be added as needed in Phase 2+.
+#
+# Planned middleware:
+#   - authMiddleware.js   (verifyToken — JWT validation for protected admin routes)
+#   - errorHandler.js     (centralised async error wrapper)
+#   - uploadMiddleware.js (multer + cloudinary storage config)

@@ -1,0 +1,8 @@
+# Express routes will be added in Phase 2.
+# Each route file should use ES Module syntax.
+#
+# Planned routes:
+#   - projects.js   → /api/projects
+#   - gallery.js    → /api/gallery
+#   - contact.js    → /api/contact   (with strictLimiter)
+#   - auth.js       → /api/auth      (with strictLimiter)
