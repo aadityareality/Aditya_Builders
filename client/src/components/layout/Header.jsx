@@ -30,7 +30,14 @@ export default function Header() {
     const observerCallback = (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          setActiveSection(entry.target.id);
+          const id = entry.target.id;
+          setActiveSection(id);
+          // Update URL hash dynamically without adding stack calls to back history
+          if (id === "home") {
+            window.history.replaceState(null, "", window.location.pathname);
+          } else {
+            window.history.replaceState(null, "", `#${id}`);
+          }
         }
       });
     };
