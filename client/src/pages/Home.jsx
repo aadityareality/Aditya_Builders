@@ -642,7 +642,7 @@ export default function Home() {
                         <img
                           src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
                           alt={p.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain bg-[#FFFBF5]/80"
                           loading="lazy"
                         />
                         <Badge status={p.status} className="absolute top-3 left-3 shadow-sm" />
@@ -805,7 +805,7 @@ export default function Home() {
                       <img
                         src={img.image?.url || "https://placehold.co/400x400/FAC354/FFFFFF?text=Aditya+Build"}
                         alt={img.title || "Aditya Build"}
-                        className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-300"
+                        className="w-full h-full object-contain bg-[#FFFBF5]/80 group-hover:scale-103 transition-transform duration-300"
                         loading="lazy"
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4 text-left select-none">

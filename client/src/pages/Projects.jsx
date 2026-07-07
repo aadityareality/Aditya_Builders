@@ -168,7 +168,7 @@ export default function Projects() {
                         <img
                           src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
                           alt={p.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain bg-[#FFFBF5]/80"
                           loading="lazy"
                         />
                         <Badge status={p.status} className="absolute top-3 left-3 shadow-sm" />
