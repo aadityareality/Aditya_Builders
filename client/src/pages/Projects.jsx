@@ -164,14 +164,21 @@ export default function Projects() {
                     transition={{ duration: 0.3 }}
                   >
                     <Card className="flex flex-col h-full overflow-hidden text-left relative">
-                      <div className="aspect-[4/3] rounded-xl overflow-hidden bg-amber-50 border border-amber-100/50 mb-5 relative">
+                      <div className="aspect-[4/3] rounded-xl overflow-hidden bg-amber-50/20 border border-amber-100/50 mb-5 relative group">
+                        {/* Ambient blurred backdrop */}
+                        <img
+                          src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-30 pointer-events-none"
+                        />
+                        {/* Clean contained image */}
                         <img
                           src={p.coverImage?.url || "https://placehold.co/600x450/F5A623/FFFFFF?text=Aditya+Project"}
                           alt={p.title}
-                          className="w-full h-full object-contain bg-[#FFFBF5]/80"
+                          className="w-full h-full object-contain relative z-10"
                           loading="lazy"
                         />
-                        <Badge status={p.status} className="absolute top-3 left-3 shadow-sm" />
+                        <Badge status={p.status} className="absolute top-3 left-3 z-20 shadow-sm" />
                       </div>
                       <h3 className="text-lg font-bold font-display text-[#2E2A26] mb-1">{p.title}</h3>
                       <span className="text-[10px] font-bold uppercase tracking-wide text-[#E8871E] mb-3 block">

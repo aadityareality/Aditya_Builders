@@ -182,11 +182,14 @@ export default function ProjectDetail() {
             {/* Left Column: Photo Showcase */}
             <div className="lg:col-span-7 flex flex-col gap-4">
               {activePhotoUrl && (
-                <div className="aspect-[4/3] rounded-3xl overflow-hidden border border-amber-100/50 shadow-sm bg-amber-50 relative group">
-                  <img src={activePhotoUrl} alt={project.title} className="w-full h-full object-contain bg-[#FFFBF5]/80" />
+                <div className="aspect-[4/3] rounded-3xl overflow-hidden border border-amber-100/50 shadow-sm bg-amber-50/20 relative group">
+                  {/* Ambient blurred backdrop */}
+                  <img src={activePhotoUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-lg scale-110 opacity-35 pointer-events-none" />
+                  {/* Clean contained image */}
+                  <img src={activePhotoUrl} alt={project.title} className="w-full h-full object-contain relative z-10" />
                   <button
                     onClick={() => setLightboxUrl(activePhotoUrl)}
-                    className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold cursor-zoom-in"
+                    className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold cursor-zoom-in z-20"
                   >
                     Click to Enlarge 🔍
                   </button>
