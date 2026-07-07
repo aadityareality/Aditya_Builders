@@ -46,7 +46,7 @@ adityabuilders/
 ## Setup Instructions
 
 ### 1. Clone the Repository
-
+ 
 ```bash
 git clone <repo-url>
 cd adityabuilders
@@ -177,5 +177,6 @@ Follow these checklist items before announcing the site to homebuyers in Bhavnag
 ---
 
 *Aditya Builders · Bhavnagar, Gujarat · Instagram: [@adityabuilders_](https://instagram.com/adityabuilders_)*
-#   A d i t y a _ B u i l d e r s  
+#   A d i t y a _ B u i l d e r s 
+ 
  
