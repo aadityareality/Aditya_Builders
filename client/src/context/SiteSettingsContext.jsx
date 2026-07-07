@@ -42,7 +42,7 @@ export function SiteSettingsProvider({ children }) {
     aboutUsFull: "Aditya Builders has been shaping the skyline of Bhavnagar, Gujarat for over 15 years.",
     yearsOfExperience: 15,
     happyCustomers: 1000,
-    projectsCompleted: 1,
+    projectsCompleted: 15,
     address: "Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat",
     phoneNumbers: ["+91 99748 58500"],
     email: "parthrajsinhparmar4115@gmail.com",

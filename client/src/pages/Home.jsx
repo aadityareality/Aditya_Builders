@@ -472,34 +472,7 @@ export default function Home() {
             </motion.div>
           </motion.div>
 
-          {/* Right Hero Visual illustration Grid */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="lg:col-span-5 relative hidden lg:block"
-          >
-            <div className="aspect-[4/3] sm:aspect-square bg-white/5 backdrop-blur-md border border-white/10 rounded-3xl p-4 shadow-2xl flex items-center justify-center overflow-hidden">
-              <div className="grid grid-cols-2 gap-4 w-full h-full">
-                <div className="bg-[#2E2A26]/80 border border-white/5 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-white">
-                  <span className="text-4xl">🏗️</span>
-                  <h4 className="font-extrabold text-[#F5A623] text-[10px] uppercase tracking-wider mt-3">PREMIUM BUILD</h4>
-                </div>
-                <div className="bg-[#2E2A26]/80 border border-white/5 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-white translate-y-6">
-                  <span className="text-4xl">🏢</span>
-                  <h4 className="font-extrabold text-[#F5A623] text-[10px] uppercase tracking-wider mt-3">MODERN LAYOUT</h4>
-                </div>
-                <div className="bg-[#2E2A26]/80 border border-white/5 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-white -translate-y-6">
-                  <span className="text-4xl">🏡</span>
-                  <h4 className="font-extrabold text-[#F5A623] text-[10px] uppercase tracking-wider mt-3">VASTU COMPLIANT</h4>
-                </div>
-                <div className="bg-[#2E2A26]/80 border border-white/5 rounded-2xl flex flex-col items-center justify-center p-6 text-center text-white">
-                  <span className="text-4xl">🔑</span>
-                  <h4 className="font-extrabold text-[#F5A623] text-[10px] uppercase tracking-wider mt-3">TIMELY DELIVERY</h4>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+
         </div>
       </section>
 
@@ -525,7 +498,7 @@ export default function Home() {
             </div>
             <div>
               <span className="text-3xl sm:text-5xl font-extrabold text-[#E8871E] font-display block">
-                {useCountUp(settings.projectsCompleted || 5)}+
+                {useCountUp(settings.projectsCompleted || 15)}+
               </span>
               <span className="text-[10px] sm:text-xs font-bold text-[#6B625A] uppercase tracking-wider mt-1 block">
                 Completed Projects

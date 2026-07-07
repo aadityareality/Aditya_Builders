@@ -241,7 +241,7 @@ const siteSettingsData = {
     "Aditya Builders has been shaping the skyline of Bhavnagar, Gujarat for over 15 years. Founded on the twin pillars of Quality and Trust, we have proudly served more than 1,000 happy customers across residential and commercial projects. Our commitment to timely delivery, superior construction standards, and transparent dealings sets us apart in the real estate landscape of Saurashtra. From affordable 2 BHK apartments to premium 3 BHK residences, every Aditya Builders project is crafted with care, purpose, and the customer's dream at its heart. Quality + Time = Aditya.",
   yearsOfExperience: 15,
   happyCustomers:    1000,
-  projectsCompleted: 1,
+  projectsCompleted: 15,
   address:
     "Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat",
   phoneNumbers:  ["+91 99748 58500"],

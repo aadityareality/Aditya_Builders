@@ -136,7 +136,7 @@ export default function About() {
               </div>
               <div className="flex flex-col">
                 <span className="text-3xl font-extrabold text-[#E8871E] font-display">
-                  {settings.projectsCompleted || 5}+
+                  {settings.projectsCompleted || 15}+
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B625A] mt-1">
                   Delivered Layouts
