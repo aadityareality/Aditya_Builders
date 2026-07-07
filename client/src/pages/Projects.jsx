@@ -188,11 +188,7 @@ export default function Projects() {
                         {p.description}
                       </p>
                       
-                      {/* Pricing strip */}
-                      <div className="mb-3 bg-[#FFFBF5] rounded-xl border border-amber-50/50 p-3 flex justify-between items-center text-xs">
-                        <span className="font-semibold text-[#6B625A]">Starting Price:</span>
-                        <span className="font-extrabold text-[#E8871E] font-display">{p.startingPrice || "Request Quote"}</span>
-                      </div>
+
 
                       {/* Saleable Area strip */}
                       {p.saleableArea?.minSqFt && (

@@ -259,10 +259,7 @@ export default function ProjectDetail() {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-1.5 font-medium"><FiTag className="text-[#F5A623]" /> Price Estimate</span>
-                    <span className="font-bold text-[#E8871E]">{project.startingPrice || "Request Quote"}</span>
-                  </div>
+
                   <div className="flex justify-between items-center">
                     <span className="flex items-center gap-1.5 font-medium"><FiKey className="text-[#F5A623]" /> Possession Date</span>
                     <span className="font-bold text-[#2E2A26]">{project.possessionDate || "TBA"}</span>

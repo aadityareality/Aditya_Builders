@@ -661,11 +661,7 @@ export default function Home() {
                       <p className="text-xs text-[#6B625A] leading-relaxed line-clamp-3 mb-5">
                         {p.description}
                       </p>
-                      
-                      <div className="mb-3 bg-[#FFFBF5] rounded-xl border border-amber-50/55 p-3 flex justify-between items-center text-xs">
-                        <span className="font-semibold text-[#6B625A]">Price:</span>
-                        <span className="font-extrabold text-[#E8871E] font-display">{p.startingPrice || "Request Quote"}</span>
-                      </div>
+
 
                       {/* Saleable Area strip */}
                       {p.saleableArea?.minSqFt && (
