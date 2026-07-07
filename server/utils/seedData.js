@@ -56,13 +56,18 @@ const projectsData = [
     possessionDate: "Dec 2026",
     contactNumbers: ["+91 99748 58500"],
     amenities: [
-      "Lift",
+      "24*7 Security",
+      "2 Big Size Lift",
+      "Solar Power for Common Area",
+      "House Keeping Service",
+      "Fire Safety",
+      "Waiting Area",
+      "Basement for Parking",
+      "Senior Citizen Area",
+      "Entrance Foyer",
       "CCTV Surveillance",
-      "24/7 Water Supply",
-      "Covered Parking",
-      "Children's Play Area",
-      "Landscaped Garden",
-      "Power Backup",
+      "Common Toilet",
+      "Rain Water Harvesting System",
     ],
     coverImage: {
       url:      "https://placehold.co/800x500/F5A623/FFFFFF?text=Aaditya+Elegance",
@@ -76,6 +81,7 @@ const projectsData = [
     isFeatured:    true,
     isActive:      true,
     displayOrder:  1,
+    saleableArea: { minSqFt: 1336, maxSqFt: 1655 },
   },
   {
     title:         "Aaditya Skyline",
@@ -108,17 +114,18 @@ const projectsData = [
     isFeatured:   true,
     isActive:     true,
     displayOrder: 2,
+    saleableArea: { minSqFt: 1060, maxSqFt: null },
   },
   {
     title:         "Shreeji Aaditya",
     slug:          "shreeji-aaditya",
     type:          "Residential",
     configuration: "2 BHK",
-    status:        "Completed",
+    status:        "Ongoing",
     location:      "Shivomnagar, Bhavnagar",
     description:
-      "Shreeji Aaditya is a successfully completed residential project that has delivered 2 BHK homes to satisfied families in Shivomnagar, Bhavnagar. Built to Aditya Builders' hallmark standards of quality and timely possession, Shreeji Aaditya stands as a testament to our promise — Quality + Time = Aditya.",
-    startingPrice:  "₹18.75 Lakh (Sold Out)",
+      "Shreeji Aaditya is an ongoing residential project offering 2 BHK homes in Shivomnagar, Bhavnagar. Built to Aditya Builders' hallmark standards of quality and timely possession, Shreeji Aaditya stands as a testament to our promise — Quality + Time = Aditya.",
+    startingPrice:  "₹18.75 Lakh onwards",
     possessionDate: "Jun 2023",
     contactNumbers: ["+91 99748 58500"],
     amenities: [
@@ -137,6 +144,7 @@ const projectsData = [
     isFeatured:   true,
     isActive:     true,
     displayOrder: 3,
+    saleableArea: { minSqFt: 1100, maxSqFt: 1500 },
   },
 ];
 
