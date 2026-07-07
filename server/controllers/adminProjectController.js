@@ -126,6 +126,11 @@ export const createProject = [
       try { payload.saleableArea = JSON.parse(payload.saleableArea); } catch { /* ignore */ }
     }
 
+    // Parse coverImage from FormData JSON string if it's not a file upload
+    if (payload.coverImage && typeof payload.coverImage === "string") {
+      try { payload.coverImage = JSON.parse(payload.coverImage); } catch { /* ignore */ }
+    }
+
     // Map cover image file if uploaded
     if (req.files && req.files["coverImage"] && req.files["coverImage"][0]) {
       const file = req.files["coverImage"][0];
@@ -202,6 +207,12 @@ export const updateProject = [
         }
       }
       updates.coverImage = { url: file.path, publicId: file.filename };
+    } else if (updates.coverImage && typeof updates.coverImage === "string") {
+      try {
+        updates.coverImage = JSON.parse(updates.coverImage);
+      } catch {
+        /* ignore */
+      }
     }
 
     // Handle gallery update
