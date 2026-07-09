@@ -63,19 +63,34 @@ app.use(
           "'self'",
           "https://res.cloudinary.com",
           "https://api.cloudinary.com",
-          process.env.CLIENT_URL || "http://localhost:5173",
+          "https://aadityareality.in",
+          "https://www.aadityareality.in",
+          "https://aditya-builders.vercel.app",
           "http://localhost:5173",
+          "http://localhost:3000",
           "http://localhost:5000",
-        ],
+          process.env.CLIENT_URL,
+        ].filter(Boolean),
         mediaSrc: ["'self'", "https://res.cloudinary.com"],
       },
     },
   })
 );
 
-// ─── CORS: Restricted to CLIENT_URL in prod ──────────────────────────────────
-const productionOrigin = process.env.CLIENT_URL;
-const developmentOrigins = ["http://localhost:5173", "http://localhost:5000"];
+// ─── CORS: Restricted to allowed origins in prod ─────────────────────────────
+const productionOrigins = [
+  "https://aadityareality.in",
+  "https://www.aadityareality.in",
+  "https://aditya-builders.vercel.app",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
+const developmentOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:5000",
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
 app.use(
   cors({
@@ -85,13 +100,13 @@ app.use(
 
       const isProduction = process.env.NODE_ENV === "production";
       const allowedOrigins = isProduction
-        ? [productionOrigin].filter(Boolean)
-        : [productionOrigin, ...developmentOrigins].filter(Boolean);
+        ? productionOrigins
+        : [...new Set([...productionOrigins, ...developmentOrigins])];
 
       if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("CORS request blocked: Origin not authorized for environment."));
+        callback(new Error(`CORS request blocked: Origin ${origin} not authorized for environment.`));
       }
     },
     credentials: true,

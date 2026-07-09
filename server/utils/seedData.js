@@ -143,8 +143,8 @@ const projectsData = [
       "Security Guard",
     ],
     coverImage: {
-      url:      "https://placehold.co/800x500/2E2A26/FFFFFF?text=Shreeji+Aaditya",
-      publicId: "seed/shreeji-aaditya-cover",
+      url:      "https://res.cloudinary.com/dcysihl0/image/upload/v1783428010/adityabuilders/projects/gallery/jnsihf2lcrs1eoymtso6.png",
+      publicId: "adityabuilders/projects/gallery/jnsihf2lcrs1eoymtso6",
     },
     gallery: [
       { url: "https://placehold.co/800x500/6B625A/FFFFFF?text=Shreeji+Gallery+1", publicId: "seed/shreeji-g1" },
