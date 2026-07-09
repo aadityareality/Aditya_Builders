@@ -131,6 +131,7 @@ export default function Gallery() {
                       fontWeight: isActive ? "700" : "600",
                       whiteSpace: "nowrap",
                       minWidth: "52px",
+                      flexShrink: 0,
                       cursor: "pointer",
                       border: "none",
                       outline: "none",
