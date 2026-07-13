@@ -8,9 +8,16 @@ import whatsappService from "../services/whatsappService.js";
  */
 export const verifyWebhook = async (req, res) => {
   try {
-    const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
+    // Temporary console logs for debugging query parameter parsing issues
+    console.log("[WhatsApp Webhook GET] req.originalUrl:", req.originalUrl);
+    console.log("[WhatsApp Webhook GET] req.query:", JSON.stringify(req.query));
+
+    // Support both flat keys ("hub.mode") and nested objects parsed from dots (hub: { mode: ... })
+    const mode = req.query["hub.mode"] || req.query.hub?.mode;
+    const token = req.query["hub.verify_token"] || req.query.hub?.verify_token;
+    const challenge = req.query["hub.challenge"] || req.query.hub?.challenge;
+
+    console.log(`[WhatsApp Webhook GET] Parsed values -> mode: ${mode}, token: ${token}, challenge: ${challenge}`);
 
     // Check if parameters are missing
     if (!mode || !token || !challenge) {
