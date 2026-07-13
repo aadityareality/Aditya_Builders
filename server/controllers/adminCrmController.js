@@ -255,11 +255,20 @@ export const sendCrmReply = catchAsync(async (req, res) => {
   const metaMessageId = metaResponse?.messages?.[0]?.id || `msg-out-${Date.now()}`;
 
   // Save Outgoing Message in MongoDB
+  let savedBody = body;
+  if (messageType !== "text" && body && typeof body === "object") {
+    savedBody = {
+      ...body,
+      cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+      fileName: body.fileName || body.filename || null
+    };
+  }
+
   const msgDoc = await Message.create({
     chat: chat._id,
     direction: "outgoing",
     messageType,
-    body: messageType === "text" ? body : body,
+    body: messageType === "text" ? body : savedBody,
     metaMessageId,
     deliveryStatus: metaResponse?.mock ? "sent" : "sent",
     sentBy: req.admin._id,
@@ -834,11 +843,20 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
       }
 
       // Save Outgoing Message logs
+      let savedBody = body;
+      if (messageType !== "text" && body && typeof body === "object") {
+        savedBody = {
+          ...body,
+          cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+          fileName: body.fileName || body.filename || null
+        };
+      }
+
       const msgDoc = await Message.create({
         chat: chat._id,
         direction: "outgoing",
         messageType,
-        body: messageType === "text" ? body : body,
+        body: messageType === "text" ? body : savedBody,
         metaMessageId,
         deliveryStatus: "sent",
         sentBy: req.admin._id,
