@@ -14,6 +14,7 @@ import {
   FiExternalLink,
   FiCalendar,
   FiBarChart2,
+  FiSend,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import logoImg from "../assets/logo.jpg";
@@ -79,6 +80,11 @@ export default function AdminLayout() {
       name: "Chat Analytics",
       path: `${ADMIN_SLUG}/chat-analytics`,
       icon: <FiBarChart2 className="w-4 h-4" />,
+    },
+    {
+      name: "WhatsApp Campaigns",
+      path: `${ADMIN_SLUG}/broadcast`,
+      icon: <FiSend className="w-4 h-4" />,
     },
     {
       name: "Projects Catalog",

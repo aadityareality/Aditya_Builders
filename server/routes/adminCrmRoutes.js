@@ -13,6 +13,7 @@ import {
   deleteMessage,
   exportChatHistory,
   getCrmAnalytics,
+  sendCrmBroadcast,
 } from "../controllers/adminCrmController.js";
 
 const router = express.Router();
@@ -36,6 +37,7 @@ router.patch("/conversations/:id/status", updateChatStatus);
 router.delete("/conversations/:id", deleteChatThread);
 router.delete("/conversations/:id/messages/:messageId", deleteMessage);
 router.get("/conversations/:id/export", exportChatHistory);
+router.post("/broadcast", sendCrmBroadcast);
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 router.patch("/customers/:id", updateCustomer);

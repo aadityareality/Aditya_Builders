@@ -38,6 +38,7 @@ const AdminUsers        = lazy(() => import("./admin/pages/AdminUsers.jsx"));
 const AdminAppointments = lazy(() => import("./admin/pages/AdminAppointments.jsx"));
 const WhatsAppCRM       = lazy(() => import("./admin/pages/WhatsAppCRM.jsx"));
 const ChatAnalytics     = lazy(() => import("./admin/pages/ChatAnalytics.jsx"));
+const WhatsAppBroadcast = lazy(() => import("./admin/pages/WhatsAppBroadcast.jsx"));
 
 const ADMIN_SLUG = import.meta.env.VITE_ADMIN_SLUG || "/secure-panel-x9k2";
 
@@ -244,6 +245,14 @@ export default function App() {
                   element={
                     <ProtectedAdminRoute>
                       <ChatAnalytics />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="broadcast"
+                  element={
+                    <ProtectedAdminRoute>
+                      <WhatsAppBroadcast />
                     </ProtectedAdminRoute>
                   }
                 />

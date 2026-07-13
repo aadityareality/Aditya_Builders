@@ -749,3 +749,106 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
     }
   });
 });
+
+/**
+ * POST /api/admin/crm/broadcast
+ * Send promotional WhatsApp message to multiple selected customers
+ */
+export const sendCrmBroadcast = catchAsync(async (req, res) => {
+  const { customerIds, messageType, body } = req.body;
+
+  if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+    return res.status(400).json({ success: false, message: "customerIds array is required" });
+  }
+
+  if (!messageType || !body) {
+    return res.status(400).json({ success: false, message: "messageType and body are required" });
+  }
+
+  // Permissions validation (Only superadmin and manager can send campaigns)
+  if (req.admin.role !== "superadmin" && req.admin.role !== "manager") {
+    return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to send campaigns" });
+  }
+
+  let successCount = 0;
+  let failureCount = 0;
+  const errors = [];
+
+  for (const customerId of customerIds) {
+    try {
+      const customer = await Customer.findById(customerId);
+      if (!customer) {
+        failureCount++;
+        errors.push(`Customer ${customerId} not found`);
+        continue;
+      }
+
+      // Format number
+      const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
+      let metaResponse = null;
+
+      // Send via WhatsApp Service
+      if (messageType === "text") {
+        metaResponse = await whatsappService.sendTextMessage(formattedPhone, body);
+      } else if (messageType === "image") {
+        metaResponse = await whatsappService.sendImage(formattedPhone, body.url, body.caption || "");
+      } else if (messageType === "document") {
+        metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", body.caption || "");
+      } else if (messageType === "location") {
+        metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
+      } else if (messageType === "template") {
+        metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en_US", body.components || []);
+      } else {
+        failureCount++;
+        errors.push(`Unsupported messageType: ${messageType}`);
+        continue;
+      }
+
+      const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
+
+      // Upsert Chat thread for logs
+      let chat = await Chat.findOne({ customer: customer._id });
+      if (!chat) {
+        chat = await Chat.create({ customer: customer._id, status: "Open" });
+      }
+
+      // Save Outgoing Message logs
+      const msgDoc = await Message.create({
+        chat: chat._id,
+        direction: "outgoing",
+        messageType,
+        body: messageType === "text" ? body : body,
+        metaMessageId,
+        deliveryStatus: "sent",
+        sentBy: req.admin._id,
+        timestamp: new Date()
+      });
+
+      // Update customer preview details
+      customer.lastMessage = messageType === "text" ? body : `[Promotional ${messageType}]`;
+      customer.lastMessageAt = new Date();
+      customer.lastActiveAt = new Date();
+      await customer.save();
+
+      // Emit new message update to active dashboard sessions
+      const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
+      emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
+
+      successCount++;
+    } catch (err) {
+      console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.message);
+      failureCount++;
+      errors.push(`Customer ${customerId} error: ${err.message}`);
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      total: customerIds.length,
+      successCount,
+      failureCount,
+      errors
+    }
+  });
+});
