@@ -14,6 +14,8 @@ import {
   testSocket,
   testMedia,
   testReply,
+  getDiagnostics,
+  runSelfTest,
 } from "../controllers/whatsappController.js";
 import { validateWhatsAppSignature } from "../middleware/whatsappSignatureValidator.js";
 import { protect } from "../../middleware/authMiddleware.js";
@@ -24,12 +26,14 @@ const router = express.Router();
  * Meta Webhook verification route (GET)
  */
 router.get("/api/webhook", verifyWebhook);
+router.get("/webhook", verifyWebhook); // Fail-safe fallback
 
 /**
  * Meta Webhook receiving route (POST)
  * Wrapped in signature validation middleware to ensure security in production.
  */
 router.post("/api/webhook", validateWhatsAppSignature, receiveWebhook);
+router.post("/webhook", validateWhatsAppSignature, receiveWebhook); // Fail-safe fallback
 
 /**
  * Custom text dispatch route (POST)
@@ -78,5 +82,11 @@ router.post("/api/test-chat", protect, testChat);
 router.post("/api/test-socket", protect, testSocket);
 router.post("/api/test-media", protect, testMedia);
 router.post("/api/test-reply", protect, testReply);
+
+/**
+ * Diagnostic and Self-Test Routes (Phases 13 & 14)
+ */
+router.get("/api/admin/whatsapp/diagnostics", protect, getDiagnostics);
+router.post("/api/admin/whatsapp/self-test", protect, runSelfTest);
 
 export default router;

@@ -154,6 +154,9 @@ const globalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests from this IP. Please try again later." },
+  skip: (req) => {
+    return req.originalUrl.startsWith("/api/webhook") || req.originalUrl.startsWith("/webhook") || req.path.includes("/webhook");
+  }
 });
 app.use(globalLimiter);
 

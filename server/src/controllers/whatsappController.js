@@ -12,9 +12,10 @@ import Customer from "../../models/Customer.js";
 import Chat from "../../models/Chat.js";
 import Message from "../../models/Message.js";
 import MessageStatus from "../../models/MessageStatus.js";
-import { emitToAdmins } from "../services/socketService.js";
+import { emitToAdmins, getIO } from "../services/socketService.js";
 import axios from "axios";
 import { v2 as cloudinary } from "cloudinary";
+import mongoose from "mongoose";
 
 /**
  * Downloads a media file from Meta's temporary URL and re-uploads to Cloudinary.
@@ -232,10 +233,10 @@ export const verifyWebhook = async (req, res) => {
   try {
     console.log("[WhatsApp Webhook GET] req.originalUrl:", req.originalUrl);
 
-    const urlObj = new URL(req.originalUrl, "http://localhost");
-    const mode = urlObj.searchParams.get("hub.mode");
-    const token = urlObj.searchParams.get("hub.verify_token");
-    const challenge = urlObj.searchParams.get("hub.challenge");
+    // Parse from req.query first, fallback to manual parsing of originalUrl
+    const mode = req.query["hub.mode"] || new URL(req.originalUrl, "http://localhost").searchParams.get("hub.mode");
+    const token = req.query["hub.verify_token"] || new URL(req.originalUrl, "http://localhost").searchParams.get("hub.verify_token");
+    const challenge = req.query["hub.challenge"] || new URL(req.originalUrl, "http://localhost").searchParams.get("hub.challenge");
 
     console.log(`[WhatsApp Webhook GET] Parsed values -> mode: ${mode}, token: ${token}, challenge: ${challenge}`);
 
@@ -267,22 +268,44 @@ export const receiveWebhook = async (req, res) => {
   // Always return 200 OK instantly to Meta to prevent timeout/retries
   res.status(200).json({ success: true });
 
+  const payload = req.body;
+  const entry = payload?.entry?.[0];
+  const change = entry?.changes?.[0];
+  const value = change?.value;
+
+  // Determine event type
+  let eventType = "other";
+  if (value?.messages) {
+    eventType = "message";
+  } else if (value?.statuses) {
+    eventType = "status";
+  }
+
+  // ── Debug Logging (Phase 9) ────────────────────────────────────────────────
+  console.log("============= WEBHOOK RECEIVED =============");
+  console.log(`Timestamp : ${new Date().toISOString()}`);
+  console.log("Headers   :", req.headers ? JSON.stringify(req.headers, null, 2) : "undefined");
+  console.log("Signature :", req.headers ? (req.headers["x-hub-signature-256"] || "none") : "none");
+  console.log("Event Type:", eventType);
+  if (eventType === "message") {
+    const msg = value?.messages?.[0];
+    console.log(`Sender    : ${value?.contacts?.[0]?.profile?.name || "Customer"}`);
+    console.log(`Phone     : ${msg?.from || "none"}`);
+    console.log(`Msg Type  : ${msg?.type || "none"}`);
+    if (msg?.type === "text") {
+      console.log(`Body      : ${msg.text?.body}`);
+    } else if (msg?.type === "interactive") {
+      console.log(`Interactive:`, JSON.stringify(msg.interactive, null, 2));
+    }
+  } else if (eventType === "status") {
+    const statusObj = value?.statuses?.[0];
+    console.log(`Status Msg: ${statusObj?.id || "none"}`);
+    console.log(`Status Val: ${statusObj?.status || "none"}`);
+  }
+  console.log("============================================");
+
   let logDoc = null;
   try {
-    const payload = req.body;
-    
-    // Determine event type
-    let eventType = "other";
-    const entry = payload.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-
-    if (value?.messages) {
-      eventType = "message";
-    } else if (value?.statuses) {
-      eventType = "status";
-    }
-
     // Persist raw webhook payload log
     logDoc = await WebhookLog.create({
       eventType,
@@ -313,11 +336,27 @@ export const receiveWebhook = async (req, res) => {
       let textBody = "";
       if (message.type === "text") {
         textBody = message.text?.body?.trim();
-      } else if (message.type === "interactive" && message.interactive?.button_reply) {
-        const buttonId = message.interactive.button_reply.id;
-        if (buttonId === "menu_projects") textBody = "1";
-        if (buttonId === "menu_visit") textBody = "3";
-        if (buttonId === "menu_location") textBody = "6";
+      } else if (message.type === "interactive") {
+        if (message.interactive?.button_reply) {
+          const buttonId = message.interactive.button_reply.id;
+          if (buttonId === "menu_projects") textBody = "1";
+          if (buttonId === "menu_visit") textBody = "3";
+          if (buttonId === "menu_location") textBody = "6";
+        } else if (message.interactive?.list_reply) {
+          // Drive state/selection choice using list item ID or title
+          const listId = message.interactive.list_reply.id || "";
+          const listTitle = message.interactive.list_reply.title || "";
+          
+          // Match standard menu indices from list ID or list title
+          if (listId.includes("menu_projects") || listTitle.toLowerCase().includes("projects")) textBody = "1";
+          else if (listId.includes("menu_visit") || listTitle.toLowerCase().includes("visit")) textBody = "3";
+          else if (listId.includes("menu_location") || listTitle.toLowerCase().includes("location")) textBody = "6";
+          else {
+            // Otherwise use the numeric prefix or list selection directly (e.g. choice 1, 2, 3)
+            const numericMatch = listId.match(/\d+/) || listTitle.match(/\d+/);
+            textBody = numericMatch ? numericMatch[0] : (listId || listTitle);
+          }
+        }
       }
 
       if (textBody) {
@@ -1117,6 +1156,210 @@ export const testReply = async (req, res) => {
   }
 };
 
+export const getDiagnostics = async (req, res) => {
+  try {
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    const isCloudinaryConfigured = !!(
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+    );
+    
+    let isSocketConnected = false;
+    try {
+      const io = getIO();
+      isSocketConnected = !!io;
+    } catch (e) {
+      // not initialized
+    }
+
+    const hasAccessToken = !!whatsappConfig.accessToken;
+    const hasPhoneId = !!whatsappConfig.phoneNumberId;
+    const hasBusinessId = !!whatsappConfig.businessAccountId;
+    const hasAppSecret = !!whatsappConfig.appSecret;
+
+    const report = {
+      success: true,
+      timestamp: new Date(),
+      environment: process.env.NODE_ENV || "development",
+      mongodbConnected: isMongoConnected,
+      cloudinaryConnected: isCloudinaryConfigured,
+      socketConnected: isSocketConnected,
+      whatsapp: {
+        metaApiVersion: whatsappConfig.graphApiVersion,
+        phoneIdConfigured: hasPhoneId,
+        businessIdConfigured: hasBusinessId,
+        accessTokenConfigured: hasAccessToken,
+        appSecretConfigured: hasAppSecret,
+        verifyTokenConfigured: !!whatsappConfig.verifyToken,
+        verifyTokenValue: whatsappConfig.verifyToken,
+        adminPhoneNumber: whatsappConfig.adminPhoneNumber,
+        canSendMessages: hasAccessToken && hasPhoneId,
+        canReceiveMessages: true,
+        signatureValidationActive: hasAppSecret
+      }
+    };
+
+    return res.status(200).json(report);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const runSelfTest = async (req, res) => {
+  const report = {
+    timestamp: new Date(),
+    steps: []
+  };
+
+  try {
+    // Step 1: Check MongoDB
+    const isMongoConnected = mongoose.connection.readyState === 1;
+    report.steps.push({
+      name: "MongoDB Connection",
+      status: isMongoConnected ? "success" : "failed",
+      details: isMongoConnected ? "Connected to database" : "Disconnected"
+    });
+
+    // Step 2: Create mock incoming message payload
+    const mockMessageId = `mock-test-${Date.now()}`;
+    const testPhone = "919998112121";
+    const testName = "Alice SelfTest";
+    const mockPayload = {
+      object: "whatsapp_business_account",
+      entry: [
+        {
+          id: whatsappConfig.businessAccountId || "mock-business-id",
+          changes: [
+            {
+              value: {
+                messaging_product: "whatsapp",
+                metadata: {
+                  display_phone_number: "16505553333",
+                  phone_number_id: whatsappConfig.phoneNumberId || "mock-phone-id"
+                },
+                contacts: [
+                  {
+                    profile: { name: testName },
+                    wa_id: testPhone
+                  }
+                ],
+                messages: [
+                  {
+                    from: testPhone,
+                    id: mockMessageId,
+                    timestamp: Math.floor(Date.now() / 1000).toString(),
+                    text: { body: "Hi" },
+                    type: "text"
+                  }
+                ]
+              },
+              field: "messages"
+            }
+          ]
+        }
+      ]
+    };
+
+    report.steps.push({
+      name: "Mock Payload Construction",
+      status: "success",
+      details: "Constructed incoming text 'Hi' message from 919998112121"
+    });
+
+    // Step 3: Trigger CRM logging & chatbot execution internally
+    let loggedCrm = false;
+    let logDoc = null;
+
+    try {
+      // Create WebhookLog
+      logDoc = await WebhookLog.create({
+        eventType: "message",
+        payload: mockPayload,
+        processed: true
+      });
+
+      // Call logIncomingToCRM
+      const message = mockPayload.entry[0].changes[0].value.messages[0];
+      await logIncomingToCRM(message, testName, testPhone, null);
+      loggedCrm = true;
+      
+      report.steps.push({
+        name: "CRM Database Logging",
+        status: "success",
+        details: "Logged Customer, Chat, and Message to MongoDB successfully"
+      });
+    } catch (crmErr) {
+      report.steps.push({
+        name: "CRM Database Logging",
+        status: "failed",
+        details: crmErr.message
+      });
+    }
+
+    // Step 4: Simulate Chatbot Response
+    try {
+      // Send welcome menu mock/real
+      const text = 
+        `🏡 *Welcome to Aaditya Builders*\n\n` +
+        `How may we help you today?\n\n` +
+        `Reply with the option number:\n` +
+        `1️⃣ New Projects\n` +
+        `2️⃣ Ready Possession\n` +
+        `3️⃣ Book Site Visit\n` +
+        `4️⃣ Download Brochure\n` +
+        `5️⃣ Contact Sales\n` +
+        `6️⃣ Office Location\n` +
+        `7️⃣ Contact Number`;
+      
+      const response = await whatsappService.sendTextMessage(testPhone, text);
+
+      report.steps.push({
+        name: "Chatbot Reply Delivery",
+        status: "success",
+        details: `Sent welcome menu. API Response: ${JSON.stringify(response)}`
+      });
+    } catch (botErr) {
+      report.steps.push({
+        name: "Chatbot Reply Delivery",
+        status: "failed",
+        details: botErr.message
+      });
+    }
+
+    // Step 5: Simulate Admin Alert Notification
+    try {
+      const adminAlertText = 
+        `🚨 *Self-Test Admin Message Alert*\n\n` +
+        `👤 *Name:* ${testName}\n` +
+        `📞 *Phone:* ${testPhone}\n` +
+        `💬 *Message:* Self-Test executed successfully.\n` +
+        `🕒 *Time:* ${new Date().toLocaleString()}`;
+
+      const response = await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText);
+
+      report.steps.push({
+        name: "Admin Notification Delivery",
+        status: "success",
+        details: `Sent alert to admin phone ${whatsappConfig.adminPhoneNumber}. Response: ${JSON.stringify(response)}`
+      });
+    } catch (adminErr) {
+      report.steps.push({
+        name: "Admin Notification Delivery",
+        status: "failed",
+        details: adminErr.message
+      });
+    }
+
+    report.success = true;
+    return res.status(200).json(report);
+  } catch (err) {
+    report.success = false;
+    report.error = err.message;
+    return res.status(500).json(report);
+  }
+};
+
 export default {
   verifyWebhook,
   receiveWebhook,
@@ -1132,4 +1375,6 @@ export default {
   testSocket,
   testMedia,
   testReply,
+  getDiagnostics,
+  runSelfTest,
 };
