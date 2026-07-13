@@ -333,18 +333,63 @@ export const sendAdminInquiryAlert = async (inquiry) => {
   const subject = inquiry.subject || "N/A";
   const project = inquiry.interestedProject?.title || "N/A";
   const message = inquiry.message || "N/A";
-  const currentDateTime = new Date(inquiry.createdAt || Date.now()).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 
-  const adminText = 
-    `🏢 New Website Enquiry\n\n` +
-    `👤 Name:\n${name}\n\n` +
-    `📧 Email:\n${email}\n\n` +
-    `📱 Phone:\n${phone}\n\n` +
-    `📌 Subject:\n${subject}\n\n` +
-    `🏗 Project:\n${project}\n\n` +
-    `💬 Message:\n${message}\n\n` +
-    `🕒 Time:\n${currentDateTime}\n\n` +
-    `🌐 Source:\nWebsite Enquiry Form`;
+  const dateStr = new Date(inquiry.createdAt || Date.now()).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" });
+  const timeStr = new Date(inquiry.createdAt || Date.now()).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" });
+  const reference = inquiry.referenceId || inquiry._id || "N/A";
+
+  let adminText = 
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🏢 NEW WEBSITE ENQUIRY\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 Name: ${name}\n` +
+    `📱 Phone: ${phone}\n` +
+    `📧 Email: ${email}\n` +
+    `🏗 Project: ${project}\n` +
+    `📌 Subject: ${subject}\n` +
+    `💬 Message: ${message}\n` +
+    `🕒 Date: ${dateStr}\n` +
+    `⏰ Time: ${timeStr}\n` +
+    `🆔 Reference ID: ${reference}\n`;
+
+  // If a project is attached, append extended property details
+  if (inquiry.interestedProject && typeof inquiry.interestedProject === "object") {
+    const proj = inquiry.interestedProject;
+    
+    // Format area
+    let areaStr = "N/A";
+    if (proj.saleableArea && proj.saleableArea.minSqFt) {
+      if (proj.saleableArea.maxSqFt) {
+        areaStr = `${proj.saleableArea.minSqFt} - ${proj.saleableArea.maxSqFt} sq.ft`;
+      } else {
+        areaStr = `${proj.saleableArea.minSqFt} sq.ft`;
+      }
+    }
+
+    const clientBaseUrl = process.env.CLIENT_URL || "https://adityabuilders.in";
+    const propertyUrl = `${clientBaseUrl}/projects/${proj.slug || ""}`;
+
+    adminText += 
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🏘️ PROPERTY DETAILS\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `- Property Name: ${proj.title || "N/A"}\n` +
+      `- Property ID: ${proj._id || "N/A"}\n` +
+      `- Project Name: ${proj.title || "N/A"}\n` +
+      `- Property Type: ${proj.type || "N/A"}\n` +
+      `- Configuration: ${proj.configuration || "N/A"}\n` +
+      `- Area: ${areaStr}\n` +
+      `- Price: ${proj.startingPrice || "N/A"}\n` +
+      `- Location: ${proj.location || "N/A"}\n` +
+      `- Builder: Aditya Builders\n` +
+      `- Possession Date: ${proj.possessionDate || "N/A"}\n` +
+      `- Property URL: ${propertyUrl}\n`;
+  }
+
+  adminText += 
+    `━━━━━━━━━━━━━━━━━━━━━━\n` +
+    `Source: Website Contact Form\n` +
+    `━━━━━━━━━━━━━━━━━━━━━━`;
 
   const formattedAdminPhone = formatPhoneNumber(whatsappConfig.adminPhoneNumber);
   return sendTextMessage(formattedAdminPhone, adminText);

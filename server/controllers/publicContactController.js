@@ -128,7 +128,7 @@ export const createInquiry = [
     // Populate interestedProject so the email and WhatsApp have access to the details
     if (inquiry.interestedProject) {
       try {
-        await inquiry.populate("interestedProject", "title startingPrice location");
+        await inquiry.populate("interestedProject");
       } catch (err) {
         console.warn("⚠️ Failed to populate interestedProject for lead notifications:", err.message);
       }

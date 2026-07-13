@@ -131,9 +131,23 @@ const contactInquirySchema = new Schema(
       type: Boolean,
       default: false,
     },
+    referenceId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
   },
   { timestamps: true }
 );
+
+// ─── Pre-save hook to generate referenceId ──────────────────────────────────
+contactInquirySchema.pre("save", function (next) {
+  if (!this.referenceId && this._id) {
+    const shortId = this._id.toString().substring(16).toUpperCase();
+    this.referenceId = `AD-${shortId}`;
+  }
+  next();
+});
 
 // ─── Indexes ───────────────────────────────────────────────────────────────────
 contactInquirySchema.index({ status: 1 });           // admin filters by status (New/Contacted/Closed)
