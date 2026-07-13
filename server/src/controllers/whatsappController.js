@@ -1432,7 +1432,26 @@ const handleBrochureRequest = async (phone, textBody, state, customerName, messa
       await sendBotReply(phone, messageId, "Sorry, we encountered a delivery issue. Please try downloading again later.");
     }
   } else {
-    await sendBotReply(phone, messageId, `Brochure for *${project.title}* isn't available yet.`);
+    const fallbackUrl = whatsappConfig.brochureUrl;
+    if (fallbackUrl) {
+      await sendBotReply(
+        phone,
+        messageId,
+        `Brochure for *${project.title}* is available in our Google Drive folder:\n👉 ${fallbackUrl}\n\nPlease click the link to view and download it.`
+      );
+      
+      // Still log download success (Feature 16)
+      await BrochureDownload.create({
+        customerPhone: phone,
+        projectId: project._id,
+        projectName: project.title,
+        status: "sent"
+      });
+      project.downloadCount = (project.downloadCount || 0) + 1;
+      await project.save();
+    } else {
+      await sendBotReply(phone, messageId, `Brochure for *${project.title}* isn't available yet.`);
+    }
   }
 
   // Transition to brochure followup stage (Feature 3)
