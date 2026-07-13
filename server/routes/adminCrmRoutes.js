@@ -14,6 +14,7 @@ import {
   exportChatHistory,
   getCrmAnalytics,
   sendCrmBroadcast,
+  getBroadcastAudience,
 } from "../controllers/adminCrmController.js";
 
 const router = express.Router();
@@ -38,6 +39,7 @@ router.delete("/conversations/:id", deleteChatThread);
 router.delete("/conversations/:id/messages/:messageId", deleteMessage);
 router.get("/conversations/:id/export", exportChatHistory);
 router.post("/broadcast", sendCrmBroadcast);
+router.get("/broadcast/audience", getBroadcastAudience);
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 router.patch("/customers/:id", updateCustomer);

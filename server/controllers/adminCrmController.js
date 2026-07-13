@@ -8,6 +8,7 @@ import CallbackRequest from "../models/CallbackRequest.js";
 import BrochureDownload from "../models/BrochureDownload.js";
 import Appointment from "../models/Appointment.js";
 import catchAsync from "../utils/catchAsync.js";
+import ContactInquiry from "../models/ContactInquiry.js";
 import whatsappService from "../src/services/whatsappService.js";
 import whatsappConfig from "../src/config/whatsappConfig.js";
 import { emitToAdmins } from "../src/services/socketService.js";
@@ -776,7 +777,27 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
 
   for (const customerId of customerIds) {
     try {
-      const customer = await Customer.findById(customerId);
+      let customer = await Customer.findById(customerId);
+      if (!customer) {
+        // If not found in Customer, check ContactInquiry or CallbackRequest and upsert!
+        const tempInq = await ContactInquiry.findById(customerId);
+        const tempCb = tempInq ? null : await CallbackRequest.findById(customerId);
+        
+        const leadName = tempInq?.name || tempCb?.name || "Customer Lead";
+        const leadPhone = tempInq?.phone || tempCb?.phone;
+        const projId = tempInq?.project || tempCb?.project || null;
+        
+        if (leadPhone) {
+          customer = await Customer.create({
+            phone: leadPhone.replace(/[^0-9]/g, ""),
+            name: leadName,
+            source: tempInq ? "Website Inquiry" : "Callback Request",
+            leadStatus: "New",
+            interestedProject: projId
+          });
+        }
+      }
+
       if (!customer) {
         failureCount++;
         errors.push(`Customer ${customerId} not found`);
@@ -850,5 +871,83 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
       failureCount,
       errors
     }
+  });
+});
+
+/**
+ * GET /api/admin/crm/broadcast/audience
+ * Fetch unified list of all contacts from Customer, ContactInquiry, and CallbackRequest
+ */
+export const getBroadcastAudience = catchAsync(async (req, res) => {
+  // Scoped view check for Executive role
+  if (req.admin.role === "executive") {
+    const crmCustomers = await Customer.find({ assignedExecutive: req.admin._id }).populate("interestedProject").lean();
+    res.status(200).json({ success: true, data: crmCustomers });
+    return;
+  }
+
+  const [crmCustomers, inquiries, callbacks] = await Promise.all([
+    Customer.find().populate("interestedProject").lean(),
+    ContactInquiry.find().populate("interestedProject").lean(),
+    CallbackRequest.find().populate("relatedProject").lean()
+  ]);
+
+  const uniqueAudience = new Map();
+
+  // 1. Add CRM Customers
+  for (const c of crmCustomers) {
+    if (!c.phone) continue;
+    const cleanPhone = c.phone.replace(/[^0-9]/g, "");
+    uniqueAudience.set(cleanPhone, {
+      _id: c._id.toString(),
+      name: c.name || "Customer",
+      phone: c.phone,
+      leadStatus: c.leadStatus || "New",
+      interestedProject: c.interestedProject || null,
+      city: c.city || "",
+      state: c.state || "",
+      source: "WhatsApp CRM"
+    });
+  }
+
+  // 2. Add Website Inquiries
+  for (const inq of inquiries) {
+    if (!inq.phone) continue;
+    const cleanPhone = inq.phone.replace(/[^0-9]/g, "");
+    if (!uniqueAudience.has(cleanPhone)) {
+      uniqueAudience.set(cleanPhone, {
+        _id: inq._id.toString(),
+        name: inq.name || "Inquiry Lead",
+        phone: inq.phone,
+        leadStatus: inq.status || "New",
+        interestedProject: inq.project || null,
+        city: "",
+        state: "",
+        source: "Website Inquiry"
+      });
+    }
+  }
+
+  // 3. Add Callback Requests
+  for (const cb of callbacks) {
+    if (!cb.phone) continue;
+    const cleanPhone = cb.phone.replace(/[^0-9]/g, "");
+    if (!uniqueAudience.has(cleanPhone)) {
+      uniqueAudience.set(cleanPhone, {
+        _id: cb._id.toString(),
+        name: cb.name || "Callback Lead",
+        phone: cb.phone,
+        leadStatus: cb.status || "New",
+        interestedProject: cb.project || null,
+        city: "",
+        state: "",
+        source: "Callback Request"
+      });
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    data: Array.from(uniqueAudience.values())
   });
 });

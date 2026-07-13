@@ -29,23 +29,13 @@ export default function WhatsAppBroadcast() {
       try {
         setLoading(true);
         // Load customers/conversations and project list
-        const [crmRes, projRes] = await Promise.all([
-          api.get("/admin/crm/conversations?limit=200"),
+        const [audienceRes, projRes] = await Promise.all([
+          api.get("/admin/crm/broadcast/audience"),
           api.get("/projects")
         ]);
 
-        if (crmRes.data?.success && crmRes.data?.data?.conversations) {
-          const list = crmRes.data.data.conversations.map(c => c.customer).filter(Boolean);
-          // De-duplicate customers list just in case
-          const uniqueList = [];
-          const seen = new Set();
-          for (const item of list) {
-            if (!seen.has(item._id)) {
-              seen.add(item._id);
-              uniqueList.push(item);
-            }
-          }
-          setCustomers(uniqueList);
+        if (audienceRes.data?.success && audienceRes.data?.data) {
+          setCustomers(audienceRes.data.data);
         }
 
         if (projRes.data?.success && projRes.data?.data) {
