@@ -31,7 +31,7 @@ export default function WhatsAppBroadcast() {
         // Load customers/conversations and project list
         const [crmRes, projRes] = await Promise.all([
           api.get("/admin/crm/conversations?limit=200"),
-          api.get("/public/projects")
+          api.get("/projects")
         ]);
 
         if (crmRes.data?.success && crmRes.data?.data?.conversations) {
