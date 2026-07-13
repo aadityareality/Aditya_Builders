@@ -49,6 +49,9 @@ import { notFound, globalErrorHandler } from "./middleware/errorMiddleware.js";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust first proxy (required for Render, Heroku, etc. — fixes express-rate-limit X-Forwarded-For)
+app.set("trust proxy", 1);
+
 // ─── Connect to MongoDB ────────────────────────────────────────────────────────
 connectDB();
 

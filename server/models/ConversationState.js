@@ -34,7 +34,6 @@ const conversationStateSchema = new Schema(
 
 // TTL index to automatically clear state after 30 minutes of inactivity (1800 seconds)
 conversationStateSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 1800 });
-conversationStateSchema.index({ phone: 1 });
 
 const ConversationState = mongoose.model("ConversationState", conversationStateSchema);
 export default ConversationState;
