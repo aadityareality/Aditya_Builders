@@ -12,22 +12,25 @@ export const verifyWebhook = async (req, res) => {
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    console.log(`[WhatsApp Controller] Webhook verification request. Mode: ${mode}, Token: ${token}`);
-
-    if (mode && token) {
-      if (mode === "subscribe" && token === whatsappConfig.verifyToken) {
-        console.log("[WhatsApp Controller] Webhook verification successful.");
-        return res.status(200).send(challenge);
-      } else {
-        console.warn("[WhatsApp Controller] Webhook verification failed. Token mismatch.");
-        return res.sendStatus(403);
-      }
+    // Check if parameters are missing
+    if (!mode || !token || !challenge) {
+      console.warn("[WhatsApp Controller] Webhook verification failed. Missing parameters.");
+      return res.status(400).send("Missing parameters");
     }
-    
-    return res.status(400).json({ success: false, message: "Missing mode or token" });
+
+    // Compare token with process.env.VERIFY_TOKEN
+    const expectedToken = process.env.VERIFY_TOKEN || "aaditya-builders-webhook";
+
+    if (mode === "subscribe" && token === expectedToken) {
+      console.log("[WhatsApp Controller] Webhook verification successful.");
+      return res.status(200).send(challenge);
+    } else {
+      console.warn("[WhatsApp Controller] Webhook verification failed. Token mismatch.");
+      return res.status(403).send("Forbidden");
+    }
   } catch (error) {
     console.error("[WhatsApp Controller] Verification error:", error.message);
-    return res.status(500).json({ success: false, message: "Internal Server Error" });
+    return res.status(500).send("Internal Server Error");
   }
 };
 
