@@ -35,6 +35,7 @@ import publicSettingsRoutes from "./routes/publicSettingsRoutes.js";
 import publicContactRoutes from "./routes/publicContactRoutes.js";
 import publicCallbackRoutes from "./routes/publicCallbackRoutes.js";
 import adminCallbackRoutes from "./routes/adminCallbackRoutes.js";
+import whatsappRoutes from "./src/routes/whatsappRoutes.js";
 
 // ─── Error Middleware (must be imported BEFORE mounting, used AFTER routes) ────
 import { notFound, globalErrorHandler } from "./middleware/errorMiddleware.js";
@@ -121,7 +122,14 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 // ─── Body Parsing & Sanitization ─────────────────────────────────────────────
-app.use(express.json({ limit: "10mb" }));
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req, res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
@@ -179,6 +187,9 @@ app.use("/api/team", publicTeamRoutes);
 app.use("/api/settings", publicSettingsRoutes);
 app.use("/api/contact", publicContactRoutes);
 app.use("/api/callback-request", publicCallbackRoutes);
+
+// ── WhatsApp APIs ────────────────────────────────────────────────────────────
+app.use("/", whatsappRoutes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SERVING STATIC FRONTEND IN PRODUCTION

@@ -2,6 +2,7 @@ import { body, validationResult } from "express-validator";
 import ContactInquiry from "../models/ContactInquiry.js";
 import { sendContactNotificationEmail } from "../utils/emailService.js";
 import catchAsync from "../utils/catchAsync.js";
+import { sendCustomerInquiryConfirmation, sendAdminInquiryAlert } from "../src/services/whatsappService.js";
 
 // Helper for express-validator result check
 const validate = (req, res) => {
@@ -124,12 +125,12 @@ export const createInquiry = [
       utmCampaign: utmCampaign || undefined,
     });
 
-    // Populate interestedProject so the email has access to the title details
+    // Populate interestedProject so the email and WhatsApp have access to the details
     if (inquiry.interestedProject) {
       try {
-        await inquiry.populate("interestedProject", "title");
+        await inquiry.populate("interestedProject", "title startingPrice location");
       } catch (err) {
-        console.warn("⚠️ Failed to populate interestedProject for lead email:", err.message);
+        console.warn("⚠️ Failed to populate interestedProject for lead notifications:", err.message);
       }
     }
 
@@ -139,6 +140,20 @@ export const createInquiry = [
       await sendContactNotificationEmail(inquiry);
     } catch (err) {
       console.error("⚠️ Failed to trigger lead notification email:", err.message);
+    }
+
+    // Send WhatsApp notification to Customer
+    try {
+      await sendCustomerInquiryConfirmation(inquiry.phone, inquiry.name);
+    } catch (err) {
+      console.error("⚠️ Failed to trigger WhatsApp confirmation to customer:", err.message);
+    }
+
+    // Send WhatsApp notification to Admin
+    try {
+      await sendAdminInquiryAlert(inquiry);
+    } catch (err) {
+      console.error("⚠️ Failed to trigger WhatsApp alert to admin:", err.message);
     }
 
     // CRITICAL SECURITY: Do NOT return internal DB fields or details back to public
