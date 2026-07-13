@@ -326,28 +326,25 @@ export const sendCustomerInquiryConfirmation = async (customerPhone, customerNam
   return sendTemplateMessage(formattedPhone, "inquiry_confirmation", "en_US", components);
 };
 
-/**
- * Send inquiry notification alert to admin
- */
 export const sendAdminInquiryAlert = async (inquiry) => {
-  const projectTitle = inquiry.interestedProject?.title || "General Inquiry";
-  const projectBudget = inquiry.interestedProject?.startingPrice || "N/A";
-  const projectLocation = inquiry.interestedProject?.location || "N/A";
-  const inquiryDate = new Date(inquiry.createdAt || Date.now()).toLocaleDateString("en-IN");
-  const inquiryTime = new Date(inquiry.createdAt || Date.now()).toLocaleTimeString("en-IN");
+  const name = inquiry.name || "N/A";
+  const email = inquiry.email || "N/A";
+  const phone = inquiry.phone || "N/A";
+  const subject = inquiry.subject || "N/A";
+  const project = inquiry.interestedProject?.title || "N/A";
+  const message = inquiry.message || "N/A";
+  const currentDateTime = new Date(inquiry.createdAt || Date.now()).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
 
   const adminText = 
-    `📋 *New Inquiry Received*\n\n` +
-    `👤 *Customer Name:* ${inquiry.name}\n` +
-    `📞 *Phone:* ${inquiry.phone}\n` +
-    `✉️ *Email:* ${inquiry.email}\n` +
-    `🏘️ *Project:* ${projectTitle}\n` +
-    `💰 *Budget:* ${projectBudget}\n` +
-    `📍 *Location:* ${projectLocation}\n` +
-    `💬 *Message:* ${inquiry.message}\n` +
-    `📅 *Date:* ${inquiryDate}\n` +
-    `⏰ *Time:* ${inquiryTime}\n` +
-    `🌐 *Source:* ${inquiry.source}`;
+    `🏢 New Website Enquiry\n\n` +
+    `👤 Name:\n${name}\n\n` +
+    `📧 Email:\n${email}\n\n` +
+    `📱 Phone:\n${phone}\n\n` +
+    `📌 Subject:\n${subject}\n\n` +
+    `🏗 Project:\n${project}\n\n` +
+    `💬 Message:\n${message}\n\n` +
+    `🕒 Time:\n${currentDateTime}\n\n` +
+    `🌐 Source:\nWebsite Enquiry Form`;
 
   const formattedAdminPhone = formatPhoneNumber(whatsappConfig.adminPhoneNumber);
   return sendTextMessage(formattedAdminPhone, adminText);
