@@ -22,7 +22,7 @@ export const verifyWebhook = async (req, res) => {
     // Check if parameters are missing
     if (!mode || !token || !challenge) {
       console.warn("[WhatsApp Controller] Webhook verification failed. Missing parameters.");
-      return res.status(400).send("Missing parameters");
+      return res.status(400).send(`Missing parameters. Received: ${JSON.stringify({ query: req.query, originalUrl: req.originalUrl })}`);
     }
 
     // Compare token with process.env.VERIFY_TOKEN
