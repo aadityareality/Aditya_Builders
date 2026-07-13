@@ -117,6 +117,20 @@ const contactInquirySchema = new Schema(
       default: null,
       trim: true,
     },
+    whatsappCustomerMessageId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    whatsappCustomerMessageStatus: {
+      type: String,
+      enum: ["not_sent", "sent", "delivered", "read", "failed"],
+      default: "not_sent",
+    },
+    whatsappAdminNotified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

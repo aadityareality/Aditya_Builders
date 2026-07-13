@@ -144,16 +144,33 @@ export const createInquiry = [
 
     // Send WhatsApp notification to Customer
     try {
-      await sendCustomerInquiryConfirmation(inquiry.phone, inquiry.name);
+      const projectTitle = inquiry.interestedProject?.title || "";
+      const customerRes = await sendCustomerInquiryConfirmation(inquiry.phone, inquiry.name, projectTitle);
+      
+      const wamid = customerRes?.messages?.[0]?.id;
+      if (wamid) {
+        inquiry.whatsappCustomerMessageId = wamid;
+      }
+      inquiry.whatsappCustomerMessageStatus = "sent";
     } catch (err) {
       console.error("⚠️ Failed to trigger WhatsApp confirmation to customer:", err.message);
+      inquiry.whatsappCustomerMessageStatus = "failed";
     }
 
     // Send WhatsApp notification to Admin
     try {
       await sendAdminInquiryAlert(inquiry);
+      inquiry.whatsappAdminNotified = true;
     } catch (err) {
       console.error("⚠️ Failed to trigger WhatsApp alert to admin:", err.message);
+      inquiry.whatsappAdminNotified = false;
+    }
+
+    // Persist WhatsApp status tracking updates
+    try {
+      await inquiry.save();
+    } catch (saveErr) {
+      console.error("⚠️ Failed to save WhatsApp tracking details to inquiry:", saveErr.message);
     }
 
     // CRITICAL SECURITY: Do NOT return internal DB fields or details back to public

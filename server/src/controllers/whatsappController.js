@@ -1,4 +1,5 @@
 import WebhookLog from "../../models/WebhookLog.js";
+import ContactInquiry from "../../models/ContactInquiry.js";
 import whatsappConfig from "../config/whatsappConfig.js";
 import whatsappService from "../services/whatsappService.js";
 
@@ -137,7 +138,19 @@ export const receiveWebhook = async (req, res) => {
     } else if (eventType === "status") {
       // Process delivery status reports (sent, delivered, read)
       const statusObj = value.statuses[0];
-      console.log(`[WhatsApp Controller] Status Update: Msg ${statusObj.id} is now ${statusObj.status} for ${statusObj.recipient_id}`);
+      const messageId = statusObj.id;
+      const messageStatus = statusObj.status; // "sent", "delivered", "read", "failed"
+      console.log(`[WhatsApp Controller] Status Update: Msg ${messageId} is now ${messageStatus} for ${statusObj.recipient_id}`);
+
+      // Update ContactInquiry status if it matches this messageId
+      try {
+        await ContactInquiry.updateOne(
+          { whatsappCustomerMessageId: messageId },
+          { whatsappCustomerMessageStatus: messageStatus }
+        );
+      } catch (dbErr) {
+        console.error("❌ Failed to update ContactInquiry status on webhook event:", dbErr.message);
+      }
     } else {
       console.log("[WhatsApp Controller] Received non-messages/non-statuses changes event:", JSON.stringify(payload));
     }

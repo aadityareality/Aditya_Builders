@@ -1,18 +1,32 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiX, FiPhone, FiUser, FiMail, FiMessageSquare, FiCheckCircle } from "react-icons/fi";
+import { FaWhatsapp } from "react-icons/fa";
+import { useSiteSettings } from "../../context/SiteSettingsContext.jsx";
 import { submitContactForm } from "../../services/api.js";
 import { trackAnalyticsEvent } from "../../utils/analytics.js";
 import { trackPixelEvent } from "../../utils/pixel.js";
 import toast from "react-hot-toast";
 
 export default function GalleryInquiryModal({ isOpen, onClose, image }) {
+  const settings = useSiteSettings();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  const getWhatsAppMessage = () => {
+    if (!image) return "";
+    if (image.relatedProject && image.relatedProject.title) {
+      return `Hi, I saw a photo of ${image.relatedProject.title} on your gallery and I'm interested. Please share more details.`;
+    }
+    return `Hi, I saw your ${image.category || "Gallery"} photos and I'm interested in your projects.`;
+  };
+
+  const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
+  const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(getWhatsAppMessage())}`;
 
   // Pre-fill message when image changes
   useEffect(() => {
@@ -217,14 +231,27 @@ export default function GalleryInquiryModal({ isOpen, onClose, image }) {
                     </div>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full bg-[#E8871E] hover:bg-[#D4861A] text-white font-bold py-3 px-6 rounded-xl transition-all text-xs text-center shadow-md shadow-amber-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2 mt-1"
-                  >
-                    <FiMail className="w-3.5 h-3.5" />
-                    {submitting ? "Sending Inquiry..." : "Submit Inquiry"}
-                  </button>
+                  <div className={`grid ${settings?.whatsappNumber ? "grid-cols-2" : "grid-cols-1"} gap-3 mt-1`}>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full bg-[#E8871E] hover:bg-[#D4861A] text-white font-bold py-3 px-4 rounded-xl transition-all text-xs text-center shadow-md shadow-amber-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2"
+                    >
+                      <FiMail className="w-3.5 h-3.5" />
+                      {submitting ? "Sending..." : "Submit Inquiry"}
+                    </button>
+
+                    {settings?.whatsappNumber && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3 px-4 rounded-xl transition-all text-xs text-center shadow-md shadow-green-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2"
+                      >
+                        <FaWhatsapp className="w-4 h-4" /> Enquire on WhatsApp
+                      </a>
+                    )}
+                  </div>
                 </form>
               ) : (
                 <motion.div

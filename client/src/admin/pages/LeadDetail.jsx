@@ -245,6 +245,26 @@ export default function LeadDetail() {
               <span className="font-bold">Source:</span>
               <span>{lead.source || "Website Contact Form"}</span>
             </div>
+            <div className="flex items-center gap-2 text-[#6B625A]">
+              <span className="font-bold">WA Customer Status:</span>
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                lead.whatsappCustomerMessageStatus === "read" ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                lead.whatsappCustomerMessageStatus === "delivered" ? "bg-green-50 text-green-600 border border-green-100" :
+                lead.whatsappCustomerMessageStatus === "sent" ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                lead.whatsappCustomerMessageStatus === "failed" ? "bg-red-50 text-red-600 border border-red-100" :
+                "bg-gray-50 text-gray-500 border border-gray-100"
+              }`}>
+                {lead.whatsappCustomerMessageStatus || "not_sent"}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-[#6B625A]">
+              <span className="font-bold">WA Admin Notified:</span>
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                lead.whatsappAdminNotified ? "bg-green-50 text-green-600 border border-green-100" : "bg-gray-50 text-gray-500 border border-gray-100"
+              }`}>
+                {lead.whatsappAdminNotified ? "Yes" : "No"}
+              </span>
+            </div>
             {lead.utmSource && (
               <div className="flex items-center gap-2 text-[#6B625A] mt-1 flex-wrap">
                 <span className="font-bold">UTM Source:</span>

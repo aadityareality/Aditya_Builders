@@ -303,18 +303,27 @@ export const formatPhoneNumber = (phone) => {
 /**
  * Send inquiry confirmation to customer
  */
-export const sendCustomerInquiryConfirmation = async (customerPhone, customerName) => {
-  const text = 
-    `Hello ${customerName}\n\n` +
-    `Thank you for contacting Aaditya Group of Companies.\n\n` +
-    `We have received your inquiry successfully.\n\n` +
-    `Our property consultant will contact you shortly.\n\n` +
-    `Regards\n` +
-    `Aaditya Group of Companies\n` +
-    `📞 +91 9974858500`;
-
+export const sendCustomerInquiryConfirmation = async (customerPhone, customerName, projectName = "") => {
   const formattedPhone = formatPhoneNumber(customerPhone);
-  return sendTextMessage(formattedPhone, text);
+  const projectText = projectName ? `for "${projectName}"` : "our projects";
+
+  const components = [
+    {
+      type: "body",
+      parameters: [
+        {
+          type: "text",
+          text: customerName,
+        },
+        {
+          type: "text",
+          text: projectText,
+        }
+      ],
+    },
+  ];
+
+  return sendTemplateMessage(formattedPhone, "inquiry_confirmation", "en_US", components);
 };
 
 /**

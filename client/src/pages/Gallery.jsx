@@ -193,7 +193,8 @@ export default function Gallery() {
                         url: img.image?.url,
                         publicId: img.image?.publicId,
                         title: img.title,
-                        category: img.category
+                        category: img.category,
+                        relatedProject: img.relatedProject
                       })}
                     >
                       <img

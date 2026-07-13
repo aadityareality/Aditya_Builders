@@ -217,13 +217,33 @@ export default function Leads() {
                       )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-[#6B625A] mb-3">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#6B625A] mb-3">
                       <a href={`tel:${lead.phone}`} className="hover:text-[#E8871E] flex items-center gap-1 font-semibold">
                         <FiPhone className="w-3.5 h-3.5 shrink-0" /> {lead.phone}
                       </a>
                       <a href={`mailto:${lead.email}`} className="hover:text-[#E8871E] flex items-center gap-1 truncate font-semibold">
                         <FiMail className="w-3.5 h-3.5 shrink-0" /> {lead.email}
                       </a>
+                      <span className="flex items-center gap-1 select-none font-semibold text-[10px]">
+                        💬 WA Customer: 
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          lead.whatsappCustomerMessageStatus === "read" ? "bg-blue-50 text-blue-600 border border-blue-100" :
+                          lead.whatsappCustomerMessageStatus === "delivered" ? "bg-green-50 text-green-600 border border-green-100" :
+                          lead.whatsappCustomerMessageStatus === "sent" ? "bg-amber-50 text-amber-600 border border-amber-100" :
+                          lead.whatsappCustomerMessageStatus === "failed" ? "bg-red-50 text-red-600 border border-red-100" :
+                          "bg-gray-50 text-gray-500 border border-gray-100"
+                        }`}>
+                          {lead.whatsappCustomerMessageStatus || "not_sent"}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-1 select-none font-semibold text-[10px]">
+                        👤 WA Admin Alert:
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                          lead.whatsappAdminNotified ? "bg-green-50 text-green-600 border border-green-100" : "bg-gray-50 text-gray-500 border border-gray-100"
+                        }`}>
+                          {lead.whatsappAdminNotified ? "Notified" : "Not Sent"}
+                        </span>
+                      </span>
                     </div>
 
                     <div className="text-xs text-[#6B625A] bg-[#FFFBF5]/35 p-3 rounded-xl border border-amber-100/40">

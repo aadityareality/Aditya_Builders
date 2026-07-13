@@ -295,6 +295,25 @@ export default function Home() {
     }
   };
 
+  const getSelectedProjectTitle = () => {
+    if (contactProject && projects.length > 0) {
+      const match = projects.find((p) => p._id === contactProject);
+      return match ? match.title : "";
+    }
+    return "";
+  };
+
+  const getWhatsAppMessage = () => {
+    const projectTitle = getSelectedProjectTitle();
+    if (projectTitle) {
+      return `Hi, I'm interested in ${projectTitle}. Please share more details.`;
+    }
+    return "Hi, I'm interested in Aditya Builders' projects. Please share more details.";
+  };
+
+  const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
+  const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(getWhatsAppMessage())}`;
+
   // Animation sets
   const heroContainerVariants = {
     hidden: {},
@@ -1026,9 +1045,26 @@ export default function Home() {
                   )}
                 </div>
 
-                <Button type="submit" disabled={submittingContact} className="py-4 justify-center w-full mt-2">
-                  {submittingContact ? "Submitting Inquiry..." : "Submit Inquiry"}
-                </Button>
+                <div className={`grid ${settings?.whatsappNumber ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"} gap-3 mt-2`}>
+                  <Button type="submit" disabled={submittingContact} className="py-4 justify-center w-full">
+                    {submittingContact ? "Submitting..." : "Submit Inquiry"}
+                  </Button>
+
+                  {settings?.whatsappNumber && (
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => {
+                        trackAnalyticsEvent("whatsapp_button_clicked", "click", "home_contact_footer");
+                        trackPixelEvent("Contact", { content_name: "whatsapp_home", value: 1 });
+                      }}
+                      className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-4 px-6 rounded-2xl transition-all text-xs text-center shadow-md shadow-green-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2 hover:scale-[1.01]"
+                    >
+                      <FaWhatsapp className="w-4 h-4" /> Enquire on WhatsApp
+                    </a>
+                  )}
+                </div>
               </form>
             </div>
           </div>
