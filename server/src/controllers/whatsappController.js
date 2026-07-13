@@ -166,10 +166,114 @@ const parseDateStr = (str) => {
   return parsed;
 };
 
-/**
- * Sends the main welcome menu message (falling back to text if buttons fail)
- */
-const sendWelcomeMenu = async (to) => {
+// ── In-Memory Spam Protection Sliding Window (Part 9) ───────────────────────
+const spamCounter = {};
+
+const isSpamming = (phone) => {
+  const now = Date.now();
+  const oneMinuteAgo = now - 60000;
+  
+  if (!spamCounter[phone]) {
+    spamCounter[phone] = [];
+  }
+  
+  // Filter old messages
+  spamCounter[phone] = spamCounter[phone].filter(ts => ts > oneMinuteAgo);
+  
+  if (spamCounter[phone].length >= 10) {
+    return true;
+  }
+  
+  spamCounter[phone].push(now);
+  return false;
+};
+
+// ── Conversation State & History Helper (Part 1 & 3) ─────────────────────────
+const updateConversationState = async (phone, flow, step, data, currentState = null) => {
+  const prevFlow = currentState ? currentState.currentFlow : null;
+  const prevStep = currentState ? currentState.currentStep : 0;
+  const prevData = currentState ? currentState.collectedData : {};
+
+  await ConversationState.findOneAndUpdate(
+    { phone },
+    {
+      $set: {
+        currentFlow: flow,
+        currentStep: step,
+        collectedData: data,
+        previousFlow: prevFlow,
+        previousStep: prevStep,
+        previousData: prevData,
+        updatedAt: new Date()
+      }
+    },
+    { upsert: true }
+  );
+};
+
+// ── Typing Indicator Delay and Read Receipts Wrappers (Part 5 & 6) ───────────
+const sendBotReply = async (to, messageId, text) => {
+  try {
+    if (messageId) {
+      await whatsappService.markMessageAsRead(messageId).catch(err =>
+        console.error("⚠️ Failed to mark message as read:", err.message)
+      );
+    }
+    // Deliberate ~1 second typing animation delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const res = await whatsappService.sendTextMessage(to, text);
+    console.log(`\x1b[32m[Chatbot Reply Sent]\x1b[0m -> Recipient: ${to}, Msg: "${text.substring(0, 60).replace(/\n/g, ' ')}..."`);
+    return res;
+  } catch (err) {
+    console.error("❌ sendBotReply Error:", err.message);
+  }
+};
+
+const sendBotInteractiveButtons = async (to, messageId, text, buttons) => {
+  try {
+    if (messageId) {
+      await whatsappService.markMessageAsRead(messageId).catch(() => {});
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const res = await whatsappService.sendInteractiveButtons(to, text, buttons);
+    console.log(`\x1b[32m[Chatbot Reply Sent (Buttons)]\x1b[0m -> Recipient: ${to}`);
+    return res;
+  } catch (err) {
+    console.error("❌ sendBotInteractiveButtons Error:", err.message);
+    return sendBotReply(to, messageId, text);
+  }
+};
+
+const sendBotLocation = async (to, messageId, lat, lng, name, address) => {
+  try {
+    if (messageId) {
+      await whatsappService.markMessageAsRead(messageId).catch(() => {});
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const res = await whatsappService.sendLocation(to, lat, lng, name, address);
+    console.log(`\x1b[32m[Chatbot Reply Sent (Location)]\x1b[0m -> Recipient: ${to}`);
+    return res;
+  } catch (err) {
+    console.error("❌ sendBotLocation Error:", err.message);
+  }
+};
+
+const sendBotDocument = async (to, messageId, url, fileName, caption) => {
+  try {
+    if (messageId) {
+      await whatsappService.markMessageAsRead(messageId).catch(() => {});
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const res = await whatsappService.sendDocument(to, url, fileName, caption);
+    console.log(`\x1b[32m[Chatbot Reply Sent (Document)]\x1b[0m -> Recipient: ${to}`);
+    return res;
+  } catch (err) {
+    console.error("❌ sendBotDocument Error:", err.message);
+  }
+};
+
+// ── Welcome Menu & Office Location Handlers ──────────────────────────────────
+const sendWelcomeMenu = async (to, messageId = null) => {
   const text = 
     `🏡 *Welcome to Aaditya Builders*\n\n` +
     `How may we help you today?\n\n` +
@@ -188,17 +292,10 @@ const sendWelcomeMenu = async (to) => {
     { id: "menu_location", title: "Office Location" }
   ];
 
-  try {
-    await whatsappService.sendInteractiveButtons(to, text, buttons);
-  } catch (err) {
-    await whatsappService.sendTextMessage(to, text);
-  }
+  await sendBotInteractiveButtons(to, messageId, text, buttons);
 };
 
-/**
- * Sends office location pin card followed by text details card
- */
-const sendOfficeLocation = async (to) => {
+const sendOfficeLocation = async (to, messageId = null) => {
   try {
     const settings = await SiteSettings.getSettings();
     const lat = settings.mapLatitude || 21.7484;
@@ -207,7 +304,7 @@ const sendOfficeLocation = async (to) => {
     const address = settings.address || "Shivomnagar, RTO Road, Bhavnagar";
 
     // Step A: Send location pin message
-    await whatsappService.sendLocation(to, lat, lng, name, address);
+    await sendBotLocation(to, messageId, lat, lng, name, address);
 
     // Step B: Send follow-up detailed message card
     const googleMapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
@@ -219,9 +316,72 @@ const sendOfficeLocation = async (to) => {
       `📞 *Phone:* ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
       `📧 *Email:* ${settings.email || "aadityareality1@gmail.com"}`;
 
-    await whatsappService.sendTextMessage(to, followUpText);
+    await sendBotReply(to, null, followUpText);
   } catch (err) {
     console.error("❌ Failed to send office location details:", err.message);
+  }
+};
+
+// ── Back Navigation State Swapping Handler ───────────────────────────────────
+const handleBackNavigation = async (phone, state, messageId) => {
+  if (!state || (!state.previousFlow && state.previousStep === 0)) {
+    await sendWelcomeMenu(phone, messageId);
+    return;
+  }
+
+  const targetFlow = state.previousFlow;
+  const targetStep = state.previousStep;
+  const targetData = state.previousData;
+
+  // Restore previous state context
+  await ConversationState.findOneAndUpdate(
+    { phone },
+    {
+      $set: {
+        currentFlow: targetFlow,
+        currentStep: targetStep,
+        collectedData: targetData,
+        previousFlow: null,
+        previousStep: 0,
+        previousData: {},
+        updatedAt: new Date()
+      }
+    }
+  );
+
+  console.log(`\x1b[35m[Chatbot] Back Navigation executed for ${phone}. Restoring state: ${targetFlow} (Step: ${targetStep})\x1b[0m`);
+
+  // Prompt the corresponding state question again
+  if (!targetFlow) {
+    await sendWelcomeMenu(phone, messageId);
+  } else if (targetFlow === "site_visit_booking") {
+    if (targetStep === 1) {
+      await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
+    } else if (targetStep === 2) {
+      await sendBotReply(phone, messageId, `Your number is currently detected as ${phone}. Reply with *YES* to use it, or type your preferred 10-digit phone number:`);
+    } else if (targetStep === 3) {
+      const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+      const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
+      await sendBotReply(phone, messageId, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
+    } else if (targetStep === 4) {
+      await sendBotReply(phone, messageId, "Please enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
+    } else if (targetStep === 5) {
+      await sendBotReply(phone, messageId, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
+    } else if (targetStep === 6) {
+      await sendBotReply(phone, messageId, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
+    } else if (targetStep === 7) {
+      await sendBotReply(phone, messageId, "Any **Special Notes** or requests? (Reply with *SKIP* or *NONE* if none):");
+    }
+  } else if (targetFlow === "brochure_request") {
+    if (targetStep === 1) {
+      const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+      const listText = projects.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n");
+      await sendBotReply(phone, messageId, `Which project would you like the brochure for? (Reply with the option number):\n\n${listText}`);
+    }
+  } else if (targetFlow === "reschedule") {
+    if (targetStep === 1) {
+      await sendBotReply(phone, messageId, "Please provide your preferred **New Date** (Format: DD/MM/YYYY):");
+    }
   }
 };
 
@@ -281,28 +441,41 @@ export const receiveWebhook = async (req, res) => {
     eventType = "status";
   }
 
-  // ── Debug Logging (Phase 9) ────────────────────────────────────────────────
-  console.log("============= WEBHOOK RECEIVED =============");
+  // ── ANSI Colored Debug Logging (Part 7) ────────────────────────────────────
+  console.log("\x1b[36m============= WEBHOOK RECEIVED =============\x1b[0m");
   console.log(`Timestamp : ${new Date().toISOString()}`);
-  console.log("Headers   :", req.headers ? JSON.stringify(req.headers, null, 2) : "undefined");
-  console.log("Signature :", req.headers ? (req.headers["x-hub-signature-256"] || "none") : "none");
-  console.log("Event Type:", eventType);
+  console.log("Event Type:", eventType === "message" ? `\x1b[32mmessage\x1b[0m` : `\x1b[33m${eventType}\x1b[0m`);
+  
   if (eventType === "message") {
     const msg = value?.messages?.[0];
-    console.log(`Sender    : ${value?.contacts?.[0]?.profile?.name || "Customer"}`);
-    console.log(`Phone     : ${msg?.from || "none"}`);
-    console.log(`Msg Type  : ${msg?.type || "none"}`);
+    console.log(`Sender    : \x1b[35m${value?.contacts?.[0]?.profile?.name || "Customer"}\x1b[0m (\x1b[36m${msg?.from}\x1b[0m)`);
+    console.log(`Msg Type  : \x1b[33m${msg?.type}\x1b[0m`);
+    
     if (msg?.type === "text") {
-      console.log(`Body      : ${msg.text?.body}`);
+      console.log(`Body      : "\x1b[32m${msg.text?.body}\x1b[0m"`);
     } else if (msg?.type === "interactive") {
       console.log(`Interactive:`, JSON.stringify(msg.interactive, null, 2));
     }
   } else if (eventType === "status") {
     const statusObj = value?.statuses?.[0];
-    console.log(`Status Msg: ${statusObj?.id || "none"}`);
-    console.log(`Status Val: ${statusObj?.status || "none"}`);
+    console.log(`Status Msg: ${statusObj?.id}`);
+    console.log(`Status Val: \x1b[32m${statusObj?.status}\x1b[0m`);
   }
-  console.log("============================================");
+  console.log("\x1b[36m============================================\x1b[0m");
+
+  // ── Duplicate Webhook Protection (Part 10) ─────────────────────────────────
+  if (eventType === "message") {
+    const msg = value?.messages?.[0];
+    if (msg && msg.id) {
+      const duplicateLog = await WebhookLog.findOne({
+        "payload.entry.changes.value.messages.id": msg.id
+      });
+      if (duplicateLog) {
+        console.log(`\x1b[33m[Chatbot] Duplicate webhook detected for message ID: ${msg.id}. Ignoring.\x1b[0m`);
+        return;
+      }
+    }
+  }
 
   let logDoc = null;
   try {
@@ -319,6 +492,17 @@ export const receiveWebhook = async (req, res) => {
       const from = message.from; // Customer phone
       const customerName = contact?.profile?.name || "Customer";
 
+      // ── Spam Protection (Part 9) ───────────────────────────────────────────
+      if (isSpamming(from)) {
+        console.warn(`\x1b[31m[Spam Protection] Triggered for user: ${from}\x1b[0m`);
+        await sendBotReply(from, message.id, "Too many messages. Please wait a minute.");
+        if (logDoc) {
+          logDoc.processed = true;
+          await logDoc.save();
+        }
+        return;
+      }
+
       // ── CRM: Persist incoming message ─────────────────────────────────────
       let cloudinaryUrl = null;
       if (["image", "video", "audio", "document", "sticker"].includes(message.type)) {
@@ -327,9 +511,9 @@ export const receiveWebhook = async (req, res) => {
           cloudinaryUrl = await persistMetaMedia(mediaObj.id, mediaObj.mime_type || "application/octet-stream");
         }
       }
-      // Log to CRM (non-blocking — errors are caught internally)
+      // Log to CRM (non-blocking)
       logIncomingToCRM(message, customerName, from, cloudinaryUrl).catch(e =>
-        console.error("[CRM] Background log error:", e.message)
+        console.error("❌ [CRM] Background log error:", e.message)
       );
       // ─────────────────────────────────────────────────────────────────────
 
@@ -343,16 +527,13 @@ export const receiveWebhook = async (req, res) => {
           if (buttonId === "menu_visit") textBody = "3";
           if (buttonId === "menu_location") textBody = "6";
         } else if (message.interactive?.list_reply) {
-          // Drive state/selection choice using list item ID or title
           const listId = message.interactive.list_reply.id || "";
           const listTitle = message.interactive.list_reply.title || "";
           
-          // Match standard menu indices from list ID or list title
           if (listId.includes("menu_projects") || listTitle.toLowerCase().includes("projects")) textBody = "1";
           else if (listId.includes("menu_visit") || listTitle.toLowerCase().includes("visit")) textBody = "3";
           else if (listId.includes("menu_location") || listTitle.toLowerCase().includes("location")) textBody = "6";
           else {
-            // Otherwise use the numeric prefix or list selection directly (e.g. choice 1, 2, 3)
             const numericMatch = listId.match(/\d+/) || listTitle.match(/\d+/);
             textBody = numericMatch ? numericMatch[0] : (listId || listTitle);
           }
@@ -360,15 +541,46 @@ export const receiveWebhook = async (req, res) => {
       }
 
       if (textBody) {
-        console.log(`[WhatsApp Controller] Incoming trigger from ${from} (${customerName}): "${textBody}"`);
-
-        // Check if there is an active conversational flow state
+        // Look up conversation state
         let state = await ConversationState.findOne({ phone: from });
+        
+        // ── Session Timeout Handling (Part 11) ─────────────────────────────────
+        if (state && (Date.now() - new Date(state.updatedAt).getTime() > 30 * 60 * 1000)) {
+          console.log(`\x1b[33m[Chatbot] Session timeout detected for ${from}. Resetting state.\x1b[0m`);
+          await ConversationState.deleteOne({ phone: from });
+          state = null;
+        }
+
+        console.log(`\x1b[33m[Chatbot] Incoming trigger:\x1b[0m "${textBody}" from \x1b[35m${from}\x1b[0m`);
+        console.log(`\x1b[33m[Chatbot] Current State   :\x1b[0m ${state ? `${state.currentFlow} (Step: ${state.currentStep})` : "stateless"}`);
+
+        const lowerText = textBody.toLowerCase();
+
+        // ── Main Menu Command Trigger (Part 2 & 12) ───────────────────────────
+        if (["menu", "home", "start", "restart", "reset", "0", "hey", "hello", "hi", "namaste", "hi aditya"].includes(lowerText)) {
+          await ConversationState.deleteOne({ phone: from });
+          await sendWelcomeMenu(from, message.id);
+          if (logDoc) {
+            logDoc.processed = true;
+            await logDoc.save();
+          }
+          return;
+        }
+
+        // ── Back Navigation Trigger (Part 3) ──────────────────────────────────
+        if (["back", "previous", "9"].includes(lowerText)) {
+          await handleBackNavigation(from, state, message.id);
+          if (logDoc) {
+            logDoc.processed = true;
+            await logDoc.save();
+          }
+          return;
+        }
 
         // Global cancellation keywords
-        if (state && state.currentFlow && ["cancel", "exit", "stop", "quit"].includes(textBody.toLowerCase())) {
+        if (state && state.currentFlow && ["cancel", "exit", "stop", "quit"].includes(lowerText)) {
           await ConversationState.deleteOne({ phone: from });
-          await whatsappService.sendTextMessage(from, "Operation cancelled. Returning to main menu...");
+          await sendBotReply(from, message.id, "Operation cancelled. Returning to main menu...");
           await sendWelcomeMenu(from);
           if (logDoc) {
             logDoc.processed = true;
@@ -377,99 +589,93 @@ export const receiveWebhook = async (req, res) => {
           return;
         }
 
+        // State router
         if (state && state.currentFlow === "site_visit_booking") {
-          await handleSiteVisitBooking(from, textBody, state, customerName);
+          await handleSiteVisitBooking(from, textBody, state, customerName, message.id);
         } else if (state && state.currentFlow === "brochure_request") {
-          await handleBrochureRequest(from, textBody, state, customerName);
+          await handleBrochureRequest(from, textBody, state, customerName, message.id);
         } else if (state && state.currentFlow === "reschedule") {
-          await handleReschedule(from, textBody, state, customerName);
+          await handleReschedule(from, textBody, state, customerName, message.id);
         } else {
           // Standard / Stateless Command router
-          const lowerText = textBody.toLowerCase();
-          
-          if (["hi", "hello", "hey", "start", "menu"].includes(lowerText)) {
-            await sendWelcomeMenu(from);
-          } else if (lowerText === "price" || lowerText === "pricing") {
-            await whatsappService.sendTextMessage(from, "Our sales team will contact you shortly with pricing.");
+          if (lowerText === "price" || lowerText === "pricing") {
+            await sendBotReply(from, message.id, "Our sales team will contact you shortly with pricing.");
           } else if (lowerText === "projects") {
-            await whatsappService.sendTextMessage(from, "Please visit\n\nhttps://adityabuilders.in");
+            await sendBotReply(from, message.id, "Please visit:\n\nhttps://adityabuilders.in");
           } else if (["location", "office", "map", "address", "visit office"].includes(lowerText)) {
-            await sendOfficeLocation(from);
+            await sendOfficeLocation(from, message.id);
           } else if (lowerText === "contact") {
-            await whatsappService.sendTextMessage(from, "📞 +91 99748 58500");
+            await sendBotReply(from, message.id, "📞 *Contact Support:*\n\nPhone: +91 99748 58500");
           } else if (lowerText === "brochure") {
-            await startBrochureRequestFlow(from);
+            await startBrochureRequestFlow(from, message.id, state);
           } else if (textBody === "1") {
             // New / Ongoing Projects
             const projects = await Project.find({ isActive: true, status: "Ongoing" }).sort({ displayOrder: 1 });
             if (projects.length === 0) {
-              await whatsappService.sendTextMessage(from, "We don't have any ongoing projects listed right now.");
+              await sendBotReply(from, message.id, "We don't have any ongoing projects listed right now.");
             } else {
               const list = projects.map(p => `🏗 *${p.title}*\n📍 Locality: ${p.location}\n💰 Starting Price: ${p.startingPrice || "N/A"}`).join("\n\n");
-              await whatsappService.sendTextMessage(from, `🏢 *Ongoing Projects Catalog:*\n\n${list}\n\nBook a site visit or view brochures by selecting options from the menu!`);
+              await sendBotReply(from, message.id, `🏢 *Ongoing Projects Catalog:*\n\n${list}\n\nBook a site visit or view brochures by selecting options from the menu!`);
             }
           } else if (textBody === "2") {
             // Ready Possession / Completed Projects
             const projects = await Project.find({ isActive: true, status: "Completed" }).sort({ displayOrder: 1 });
             if (projects.length === 0) {
-              await whatsappService.sendTextMessage(from, "We don't have any completed projects listed right now.");
+              await sendBotReply(from, message.id, "We don't have any completed projects listed right now.");
             } else {
               const list = projects.map(p => `🏢 *${p.title}*\n📍 Locality: ${p.location}\n💰 Price: ${p.startingPrice || "N/A"}`).join("\n\n");
-              await whatsappService.sendTextMessage(from, `🏡 *Ready Possession Catalog:*\n\n${list}`);
+              await sendBotReply(from, message.id, `🏡 *Ready Possession Catalog:*\n\n${list}`);
             }
           } else if (textBody === "3") {
-            // Start Visit booking flow
-            await startSiteVisitBookingFlow(from);
+            await startSiteVisitBookingFlow(from, message.id, state);
           } else if (textBody === "4") {
-            // Start brochure flow
-            await startBrochureRequestFlow(from);
+            await startBrochureRequestFlow(from, message.id, state);
           } else if (textBody === "5") {
             const settings = await SiteSettings.getSettings();
-            await whatsappService.sendTextMessage(
+            await sendBotReply(
               from,
+              message.id,
               `📞 *Sales Contact Details:*\n\n` +
               `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
               `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
               `Office Hours: ${settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM"}`
             );
           } else if (textBody === "6") {
-            await sendOfficeLocation(from);
+            await sendOfficeLocation(from, message.id);
           } else if (textBody === "7") {
             const settings = await SiteSettings.getSettings();
-            await whatsappService.sendTextMessage(
+            await sendBotReply(
               from,
+              message.id,
               `🏢 *Aaditya Builders Support:*\n\n` +
               `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
               `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
               `Website: https://adityabuilders.in`
             );
           } else if (lowerText === "yes" || lowerText === "no") {
-            // Check if there was an active rescheduling trigger context
             const activeApt = await Appointment.findOne({ customerPhone: from, status: { $in: ["Confirmed", "Rescheduled"] } }).sort({ createdAt: -1 });
             if (activeApt && lowerText === "yes") {
-              await ConversationState.create({
-                phone: from,
-                currentFlow: "reschedule",
-                currentStep: 1,
-                collectedData: {},
-                updatedAt: new Date()
-              });
-              await whatsappService.sendTextMessage(from, "Sure! Let's reschedule. Please provide your preferred **New Date** (Format: DD/MM/YYYY):");
+              const data = {};
+              await updateConversationState(from, "reschedule", 1, data, state);
+              await sendBotReply(from, message.id, "Sure! Let's reschedule. Please provide your preferred **New Date** (Format: DD/MM/YYYY):");
             } else {
-              await whatsappService.sendTextMessage(from, "Thank you. Your site visit booking remains confirmed.");
+              await sendBotReply(from, message.id, "Thank you. Your site visit booking remains confirmed.");
             }
           } else {
-            // Unrecognized / Fallback: alert admin
-            console.log(`[WhatsApp Controller] Forwarding query to admin from ${from}`);
-            const adminAlert = 
-              `🚨 *New Customer Message Alert*\n\n` +
-              `👤 *Name:* ${customerName}\n` +
-              `📞 *Phone:* ${from}\n` +
-              `💬 *Message:* ${textBody}\n` +
-              `🕒 *Time:* ${new Date().toLocaleString()}`;
-            
-            await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlert);
-            await whatsappService.sendTextMessage(from, "Thank you for your message! Our sales executive has been notified and will contact you directly.");
+            // Invalid / Fallback trigger (Part 4)
+            console.log(`\x1b[33m[Chatbot] Unrecognized input:\x1b[0m "${textBody}" from ${from}`);
+            const unrecognizedText = 
+              `I didn't understand that.\n` +
+              `Please choose one of the available options.\n\n` +
+              `Reply:\n` +
+              `1️⃣ New Projects\n` +
+              `2️⃣ Ready Possession\n` +
+              `3️⃣ Book Site Visit\n` +
+              `4️⃣ Download Brochure\n` +
+              `5️⃣ Contact Sales\n` +
+              `6️⃣ Office Location\n` +
+              `7️⃣ Contact Number`;
+            await sendBotReply(from, message.id, unrecognizedText);
           }
         }
       }
@@ -496,7 +702,7 @@ export const receiveWebhook = async (req, res) => {
           crmMsg.deliveryStatus = messageStatus;
           await crmMsg.save();
 
-          // Log the transition in audit trail
+          // Log transition
           await MessageStatus.create({
             message: crmMsg._id,
             previousStatus,
@@ -504,7 +710,7 @@ export const receiveWebhook = async (req, res) => {
             rawMetaPayload: statusObj
           });
 
-          // Emit real-time delivery tick to dashboard
+          // Emit Socket update
           emitToAdmins("message_status", {
             chatId: crmMsg.chat,
             messageId: crmMsg._id,
@@ -515,7 +721,6 @@ export const receiveWebhook = async (req, res) => {
       } catch (crmErr) {
         console.error("❌ [CRM] Status update error:", crmErr.message);
       }
-      // ──────────────────────────────────────────────────────────────────────
     }
 
     if (logDoc) {
@@ -531,35 +736,22 @@ export const receiveWebhook = async (req, res) => {
     }
   }
 };
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   CONVERSATIONAL CHATBOT HANDLERS
-   ───────────────────────────────────────────────────────────────────────────── */
-
-const startSiteVisitBookingFlow = async (phone) => {
+const startSiteVisitBookingFlow = async (phone, messageId = null, currentState = null) => {
   await ConversationState.deleteMany({ phone }); // reset
-  await ConversationState.create({
-    phone,
-    currentFlow: "site_visit_booking",
-    currentStep: 1,
-    collectedData: {},
-    updatedAt: new Date()
-  });
-  await whatsappService.sendTextMessage(phone, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
+  await updateConversationState(phone, "site_visit_booking", 1, {}, currentState);
+  await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
 };
 
-const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
+const handleSiteVisitBooking = async (phone, textBody, state, customerName, messageId = null) => {
   const step = state.currentStep;
   const data = state.collectedData || {};
 
   if (step === 1) {
     data.name = textBody;
-    state.currentStep = 2;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(
+    await updateConversationState(phone, "site_visit_booking", 2, data, state);
+    await sendBotReply(
       phone,
+      messageId,
       `Got it, ${textBody}!\n\nYour number is currently detected as ${phone}. Would you like to use this number for contact, or specify a different number? Reply with *YES* to use it, or type your preferred 10-digit phone number:`
     );
   } else if (step === 2) {
@@ -570,7 +762,7 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
       if (cleanNum.length >= 10) {
         data.phone = cleanNum;
       } else {
-        await whatsappService.sendTextMessage(phone, "Please provide a valid 10-digit phone number, or reply *YES* to confirm:");
+        await sendBotReply(phone, messageId, "Please provide a valid 10-digit phone number, or reply *YES* to confirm:");
         return;
       }
     }
@@ -580,24 +772,18 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
     if (projects.length === 0) {
       data.projectId = null;
       data.projectName = "General Site Visit";
-      state.currentStep = 4; // Skip project choice
-      state.collectedData = data;
-      state.updatedAt = new Date();
-      await state.save();
-      await whatsappService.sendTextMessage(phone, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
+      await updateConversationState(phone, "site_visit_booking", 4, data, state);
+      await sendBotReply(phone, messageId, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
     } else {
       const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
       data.projectList = projects.map(p => p._id);
-      state.currentStep = 3;
-      state.collectedData = data;
-      state.updatedAt = new Date();
-      await state.save();
-      await whatsappService.sendTextMessage(phone, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
+      await updateConversationState(phone, "site_visit_booking", 3, data, state);
+      await sendBotReply(phone, messageId, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
     }
   } else if (step === 3) {
     const idx = parseInt(textBody, 10) - 1;
     if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
-      await whatsappService.sendTextMessage(phone, "Invalid project choice. Please reply with a valid number from the catalog list:");
+      await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the catalog list:");
       return;
     }
     const projectId = data.projectList[idx];
@@ -605,42 +791,30 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
     
     data.projectId = project._id;
     data.projectName = project.title;
-    state.currentStep = 4;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(phone, `Excellent. You've chosen *${project.title}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
+    await updateConversationState(phone, "site_visit_booking", 4, data, state);
+    await sendBotReply(phone, messageId, `Excellent. You've chosen *${project.title}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
   } else if (step === 4) {
     const parsedDate = parseDateStr(textBody);
     if (!parsedDate) {
-      await whatsappService.sendTextMessage(phone, "Invalid date format. Please type the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
+      await sendBotReply(phone, messageId, "Invalid date format. Please type the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
       return;
     }
     data.date = textBody;
-    state.currentStep = 5;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(phone, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
+    await updateConversationState(phone, "site_visit_booking", 5, data, state);
+    await sendBotReply(phone, messageId, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
   } else if (step === 5) {
     data.time = textBody;
-    state.currentStep = 6;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(phone, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
+    await updateConversationState(phone, "site_visit_booking", 6, data, state);
+    await sendBotReply(phone, messageId, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
   } else if (step === 6) {
     const visitors = parseInt(textBody, 10);
     if (isNaN(visitors) || visitors <= 0) {
-      await whatsappService.sendTextMessage(phone, "Please enter a valid positive number for the visitor count:");
+      await sendBotReply(phone, messageId, "Please enter a valid positive number for the visitor count:");
       return;
     }
     data.visitors = visitors;
-    state.currentStep = 7;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(phone, "Any **Special Notes** or requests? (Reply with *SKIP* or *NONE* if none):");
+    await updateConversationState(phone, "site_visit_booking", 7, data, state);
+    await sendBotReply(phone, messageId, "Any **Special Notes** or requests? (Reply with *SKIP* or *NONE* if none):");
   } else if (step === 7) {
     const notes = ["SKIP", "NONE"].includes(textBody.toUpperCase()) ? "" : textBody;
     const dateObj = parseDateStr(data.date);
@@ -668,7 +842,7 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
       `Reference: ${apt.referenceId}\n` +
       `Thank you.`;
 
-    await whatsappService.sendTextMessage(phone, customerConfirmText);
+    await sendBotReply(phone, messageId, customerConfirmText);
 
     // Send admin notification
     const adminAlertText = 
@@ -690,33 +864,26 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
   }
 };
 
-const startBrochureRequestFlow = async (phone) => {
+const startBrochureRequestFlow = async (phone, messageId = null, currentState = null) => {
   const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
   if (projects.length === 0) {
-    await whatsappService.sendTextMessage(phone, "No projects are currently listed in our catalog.");
+    await sendBotReply(phone, messageId, "No projects are currently listed in our catalog.");
     return;
   }
 
-  await ConversationState.deleteMany({ phone }); // reset
   const listText = projects.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n");
+  const data = { projectList: projects.map(p => p._id) };
+  await updateConversationState(phone, "brochure_request", 1, data, currentState);
 
-  await ConversationState.create({
-    phone,
-    currentFlow: "brochure_request",
-    currentStep: 1,
-    collectedData: { projectList: projects.map(p => p._id) },
-    updatedAt: new Date()
-  });
-
-  await whatsappService.sendTextMessage(phone, `Which project would you like the brochure for? (Reply with the option number):\n\n${listText}`);
+  await sendBotReply(phone, messageId, `Which project would you like the brochure for? (Reply with the option number):\n\n${listText}`);
 };
 
-const handleBrochureRequest = async (phone, textBody, state, customerName) => {
+const handleBrochureRequest = async (phone, textBody, state, customerName, messageId = null) => {
   const data = state.collectedData || {};
   const idx = parseInt(textBody, 10) - 1;
 
   if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
-    await whatsappService.sendTextMessage(phone, "Invalid project choice. Please reply with a valid number from the catalog list:");
+    await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the catalog list:");
     return;
   }
 
@@ -724,10 +891,9 @@ const handleBrochureRequest = async (phone, textBody, state, customerName) => {
   const project = await Project.findById(projectId);
 
   if (project.brochure && project.brochure.url) {
-    // Send PDF document via WhatsApp Document
     try {
       const fileName = `${project.title.replace(/\s+/g, "_")}_Brochure.pdf`;
-      await whatsappService.sendDocument(phone, project.brochure.url, fileName, `Brochure for ${project.title}`);
+      await sendBotDocument(phone, messageId, project.brochure.url, fileName, `Brochure for ${project.title}`);
       
       // Log download success
       await BrochureDownload.create({
@@ -748,11 +914,11 @@ const handleBrochureRequest = async (phone, textBody, state, customerName) => {
         projectName: project.title,
         status: "failed"
       });
-      await whatsappService.sendTextMessage(phone, "Sorry, we encountered a delivery issue. Please try downloading again later.");
+      await sendBotReply(phone, messageId, "Sorry, we encountered a delivery issue. Please try downloading again later.");
     }
   } else {
     // Fallback if missing
-    await whatsappService.sendTextMessage(phone, `Brochure for this project isn't available yet. Would you like to speak with our sales team instead?`);
+    await sendBotReply(phone, messageId, `Brochure for this project isn't available yet. Would you like to speak with our sales team instead?`);
     
     // Log failure
     await BrochureDownload.create({
@@ -773,22 +939,19 @@ const handleBrochureRequest = async (phone, textBody, state, customerName) => {
   await ConversationState.deleteOne({ phone });
 };
 
-const handleReschedule = async (phone, textBody, state, customerName) => {
+const handleReschedule = async (phone, textBody, state, customerName, messageId = null) => {
   const step = state.currentStep;
   const data = state.collectedData || {};
 
   if (step === 1) {
     const parsedDate = parseDateStr(textBody);
     if (!parsedDate) {
-      await whatsappService.sendTextMessage(phone, "Invalid date format. Please reply with the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
+      await sendBotReply(phone, messageId, "Invalid date format. Please reply with the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
       return;
     }
     data.newDate = textBody;
-    state.currentStep = 2;
-    state.collectedData = data;
-    state.updatedAt = new Date();
-    await state.save();
-    await whatsappService.sendTextMessage(phone, "Please enter your preferred **New Time** (e.g. 10:30 AM or 4:00 PM):");
+    await updateConversationState(phone, "reschedule", 2, data, state);
+    await sendBotReply(phone, messageId, "Please enter your preferred **New Time** (e.g. 10:30 AM or 4:00 PM):");
   } else if (step === 2) {
     // Find latest confirmed/rescheduled appointment
     const apt = await Appointment.findOne({
@@ -797,7 +960,7 @@ const handleReschedule = async (phone, textBody, state, customerName) => {
     }).sort({ createdAt: -1 });
 
     if (!apt) {
-      await whatsappService.sendTextMessage(phone, "We couldn't locate an active visit booking for this number. Rescheduling flow aborted.");
+      await sendBotReply(phone, messageId, "We couldn't locate an active visit booking for this number. Rescheduling flow aborted.");
     } else {
       const dateObj = parseDateStr(data.newDate);
       apt.preferredDate = dateObj;
@@ -815,7 +978,7 @@ const handleReschedule = async (phone, textBody, state, customerName) => {
         `Time: ${textBody}\n` +
         `Reference: ${apt.referenceId}\n` +
         `Thank you.`;
-      await whatsappService.sendTextMessage(phone, confirmText);
+      await sendBotReply(phone, messageId, confirmText);
 
       // Alert admin
       const adminAlertText = 

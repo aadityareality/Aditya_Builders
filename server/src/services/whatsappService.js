@@ -88,6 +88,19 @@ export const sendTemplateMessage = async (to, templateName, languageCode = "en_U
 };
 
 /**
+ * Mark an incoming message as read by sending a read receipt payload.
+ * @param {string} messageId - Unique ID of the incoming message sent by Meta.
+ */
+export const markMessageAsRead = async (messageId) => {
+  const payload = {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: messageId,
+  };
+  return sendMetaMessage(payload);
+};
+
+/**
  * Send an image
  * @param {string} to - Recipient phone number
  * @param {string} imageUrl - Fully qualified direct URL to public image
@@ -407,6 +420,7 @@ const whatsappService = {
   formatPhoneNumber,
   sendCustomerInquiryConfirmation,
   sendAdminInquiryAlert,
+  markMessageAsRead,
 };
 
 export default whatsappService;

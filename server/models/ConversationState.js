@@ -12,7 +12,6 @@ const conversationStateSchema = new Schema(
     },
     currentFlow: {
       type: String,
-      enum: ["site_visit_booking", "reschedule", null],
       default: null,
     },
     currentStep: {
@@ -20,6 +19,18 @@ const conversationStateSchema = new Schema(
       default: 0,
     },
     collectedData: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
+    previousFlow: {
+      type: String,
+      default: null,
+    },
+    previousStep: {
+      type: Number,
+      default: 0,
+    },
+    previousData: {
       type: Schema.Types.Mixed,
       default: {},
     },
