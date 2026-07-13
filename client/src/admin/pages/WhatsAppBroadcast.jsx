@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../../hooks/api.js";
 import toast from "react-hot-toast";
-import { FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers } from "react-icons/fi";
+import { FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers, FiUpload, FiX } from "react-icons/fi";
 import Loader from "../../components/ui/Loader.jsx";
 
 export default function WhatsAppBroadcast() {
@@ -20,6 +20,8 @@ export default function WhatsAppBroadcast() {
   const [campaignType, setCampaignType] = useState("text"); // text, template, image
   const [messageBody, setMessageBody] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadFilename, setUploadFilename] = useState("");
   
   // Progress tracker
   const [progress, setProgress] = useState(null); // { current, total, success, failure }
@@ -49,6 +51,37 @@ export default function WhatsAppBroadcast() {
     };
     fetchData();
   }, []);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadFilename(file.name);
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      const { data } = await api.post("/admin/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      });
+
+      if (data.success && data.url) {
+        setMediaUrl(data.url);
+        toast.success("Image uploaded successfully!");
+      } else {
+        toast.error("Upload failed. Please try again.");
+      }
+    } catch (err) {
+      console.error("Image upload error:", err);
+      toast.error(err.response?.data?.message || "Failed to upload image.");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Filter logic
   const filteredCustomers = customers.filter(c => {
@@ -367,16 +400,56 @@ export default function WhatsAppBroadcast() {
 
             {/* If Media selected, show media URL field */}
             {campaignType === "image" && (
-              <div className="space-y-1">
-                <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider">Image Direct URL</label>
-                <input
-                  type="url"
-                  value={mediaUrl}
-                  onChange={(e) => setMediaUrl(e.target.value)}
-                  placeholder="https://example.com/promo.jpg"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
-                  required
-                />
+              <div className="space-y-2">
+                <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider block">Upload Image from Gallery</label>
+                
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                    id="campaign-image-upload"
+                  />
+                  <label
+                    htmlFor="campaign-image-upload"
+                    className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-amber-300 bg-amber-50/20 text-[#F5A623] hover:bg-amber-50/50 cursor-pointer rounded-xl text-xs font-bold transition-all shrink-0"
+                  >
+                    <FiUpload className="w-3.5 h-3.5" />
+                    {uploading ? "Uploading..." : "Choose Image"}
+                  </label>
+                  
+                  <span className="text-[10px] text-gray-500 truncate max-w-[150px]">
+                    {uploadFilename || "No file chosen"}
+                  </span>
+                </div>
+
+                {mediaUrl && (
+                  <div className="relative mt-2 border border-gray-100 rounded-xl overflow-hidden max-h-32 bg-gray-50 flex items-center justify-center">
+                    <img src={mediaUrl} alt="preview" className="max-h-32 object-contain" />
+                    <button
+                      type="button"
+                      onClick={() => { setMediaUrl(""); setUploadFilename(""); }}
+                      className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition"
+                    >
+                      <FiX className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+                
+                <div className="pt-1">
+                  <span className="text-[9px] text-gray-400 block">Or paste direct URL:</span>
+                  <input
+                    type="url"
+                    value={mediaUrl}
+                    onChange={(e) => {
+                      setMediaUrl(e.target.value);
+                      if (e.target.value) setUploadFilename("Manual Link");
+                    }}
+                    placeholder="https://example.com/promo.jpg"
+                    className="w-full mt-1 px-3 py-1.5 border border-gray-200 rounded-xl text-[11px] outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
               </div>
             )}
 
@@ -404,7 +477,7 @@ export default function WhatsAppBroadcast() {
                 }
                 rows={5}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 resize-none"
-                required
+                required={campaignType === "text"}
               />
             </div>
 
