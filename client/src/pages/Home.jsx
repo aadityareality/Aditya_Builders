@@ -303,16 +303,28 @@ export default function Home() {
     return "";
   };
 
-  const getWhatsAppMessage = () => {
+  const handleWhatsAppEnquiry = (e) => {
+    e.preventDefault();
     const projectTitle = getSelectedProjectTitle();
-    if (projectTitle) {
-      return `Hi, I'm interested in ${projectTitle}. Please share more details.`;
-    }
-    return "Hi, I'm interested in Aditya Builders' projects. Please share more details.";
-  };
 
-  const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
-  const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(getWhatsAppMessage())}`;
+    const details = [
+      `*Name:* ${contactName.trim() || "N/A"}`,
+      `*Email:* ${contactEmail.trim() || "N/A"}`,
+      `*Phone:* ${contactPhone.trim() || "N/A"}`,
+      contactSubject.trim() ? `*Subject:* ${contactSubject.trim()}` : null,
+      projectTitle ? `*Project:* ${projectTitle}` : null,
+      contactMessage.trim() ? `*Message:* ${contactMessage.trim()}` : null,
+    ].filter(Boolean).join("\n");
+
+    const text = `Hi, I would like to submit an enquiry:\n\n${details}`;
+    const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
+    const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+
+    trackAnalyticsEvent("whatsapp_button_clicked", "click", "home_contact_footer");
+    trackPixelEvent("Contact", { content_name: "whatsapp_home", value: 1 });
+
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
 
   // Animation sets
   const heroContainerVariants = {
@@ -1051,18 +1063,13 @@ export default function Home() {
                   </Button>
 
                   {settings?.whatsappNumber && (
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => {
-                        trackAnalyticsEvent("whatsapp_button_clicked", "click", "home_contact_footer");
-                        trackPixelEvent("Contact", { content_name: "whatsapp_home", value: 1 });
-                      }}
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppEnquiry}
                       className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-4 px-6 rounded-2xl transition-all text-xs text-center shadow-md shadow-green-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2 hover:scale-[1.01]"
                     >
                       <FaWhatsapp className="w-4 h-4" /> Enquire on WhatsApp
-                    </a>
+                    </button>
                   )}
                 </div>
               </form>

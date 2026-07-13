@@ -17,16 +17,26 @@ export default function GalleryInquiryModal({ isOpen, onClose, image }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const getWhatsAppMessage = () => {
-    if (!image) return "";
-    if (image.relatedProject && image.relatedProject.title) {
-      return `Hi, I saw a photo of ${image.relatedProject.title} on your gallery and I'm interested. Please share more details.`;
-    }
-    return `Hi, I saw your ${image.category || "Gallery"} photos and I'm interested in your projects.`;
-  };
+  const handleWhatsAppEnquiry = (e) => {
+    e.preventDefault();
+    if (!image) return;
+    const projectTitle = image.relatedProject?.title || "";
 
-  const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
-  const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(getWhatsAppMessage())}`;
+    const details = [
+      `*Name:* ${name.trim() || "N/A"}`,
+      `*Email:* ${email.trim() || "N/A"}`,
+      `*Phone:* ${phone.trim() || "N/A"}`,
+      `*Design/Image:* ${image.title} (${image.category})`,
+      projectTitle ? `*Project:* ${projectTitle}` : null,
+      message.trim() ? `*Message:* ${message.trim()}` : null,
+    ].filter(Boolean).join("\n");
+
+    const text = `Hi, I'm interested in this gallery design:\n\n${details}`;
+    const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
+    const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
 
   // Pre-fill message when image changes
   useEffect(() => {
@@ -242,14 +252,13 @@ export default function GalleryInquiryModal({ isOpen, onClose, image }) {
                     </button>
 
                     {settings?.whatsappNumber && (
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={handleWhatsAppEnquiry}
                         className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-3 px-4 rounded-xl transition-all text-xs text-center shadow-md shadow-green-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2"
                       >
                         <FaWhatsapp className="w-4 h-4" /> Enquire on WhatsApp
-                      </a>
+                      </button>
                     )}
                   </div>
                 </form>
