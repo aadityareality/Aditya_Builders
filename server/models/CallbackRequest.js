@@ -34,6 +34,11 @@ const callbackRequestSchema = new Schema(
       enum: ["New", "Contacted", "Closed"],
       default: "New",
     },
+    reason: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   { timestamps: true }
 );

@@ -10,6 +10,7 @@ import {
   updateCustomerTags,
   updateChatStatus,
   deleteChatThread,
+  deleteMessage,
   exportChatHistory,
   getCrmAnalytics,
 } from "../controllers/adminCrmController.js";
@@ -33,6 +34,7 @@ router.get("/conversations/:id/messages", getChatMessages);
 router.post("/conversations/:id/reply", replyLimiter, sendCrmReply);
 router.patch("/conversations/:id/status", updateChatStatus);
 router.delete("/conversations/:id", deleteChatThread);
+router.delete("/conversations/:id/messages/:messageId", deleteMessage);
 router.get("/conversations/:id/export", exportChatHistory);
 
 // ── Customer Routes ───────────────────────────────────────────────────────────

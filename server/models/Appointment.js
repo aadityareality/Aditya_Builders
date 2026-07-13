@@ -47,6 +47,11 @@ const appointmentSchema = new Schema(
       enum: ["Confirmed", "Completed", "Cancelled", "Rescheduled"],
       default: "Confirmed",
     },
+    customerEmail: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     referenceId: {
       type: String,
       default: null,
@@ -55,6 +60,7 @@ const appointmentSchema = new Schema(
     remindersSent: {
       h24: { type: Boolean, default: false },
       h3:  { type: Boolean, default: false },
+      h2:  { type: Boolean, default: false },
       h1:  { type: Boolean, default: false },
       m30: { type: Boolean, default: false },
     },

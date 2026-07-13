@@ -40,7 +40,7 @@ const messageSchema = new Schema(
     },
     deliveryStatus: {
       type: String,
-      enum: ["sent", "delivered", "read", "failed"],
+      enum: ["sent", "delivered", "read", "seen", "failed"],
       default: "sent",
     },
     timestamp: {
@@ -56,6 +56,10 @@ const messageSchema = new Schema(
       ref: "Admin",
       default: null,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
@@ -63,6 +67,7 @@ const messageSchema = new Schema(
 messageSchema.index({ chat: 1 });
 messageSchema.index({ timestamp: 1 });
 messageSchema.index({ metaMessageId: 1 }, { unique: true, sparse: true }); // Prevent duplicates
+messageSchema.index({ chat: 1, isDeleted: 1, timestamp: -1 });
 
 const Message = mongoose.model("Message", messageSchema);
 export default Message;

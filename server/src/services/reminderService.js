@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import Appointment from "../../models/Appointment.js";
 import ReminderLog from "../../models/ReminderLog.js";
+import Customer from "../../models/Customer.js";
 import whatsappService from "./whatsappService.js";
 
 /**
@@ -30,6 +31,7 @@ export const getAppointmentDateTime = (date, timeStr) => {
 
 /**
  * Core function to check upcoming appointments and send reminders
+ * Consolidated to 24 hours, 2 hours, and 30 minutes (Feature 8)
  */
 export const checkAndSendReminders = async () => {
   console.log("[Reminder Service] Running periodic check for upcoming appointments...");
@@ -50,19 +52,15 @@ export const checkAndSendReminders = async () => {
       let reminderKey = null;
       let relativeTimeText = "";
 
-      // Check windows sequentially
-      if (diffMins <= 1440 && diffMins > 180 && !apt.remindersSent.h24) {
+      // Check windows sequentially: 24h, 2h, 30m
+      if (diffMins <= 1440 && diffMins > 120 && !apt.remindersSent.h24) {
         reminderType = "24h";
         reminderKey = "h24";
         relativeTimeText = "tomorrow";
-      } else if (diffMins <= 180 && diffMins > 60 && !apt.remindersSent.h3) {
-        reminderType = "3h";
-        reminderKey = "h3";
-        relativeTimeText = "in 3 hours";
-      } else if (diffMins <= 60 && diffMins > 30 && !apt.remindersSent.h1) {
-        reminderType = "1h";
-        reminderKey = "h1";
-        relativeTimeText = "in 1 hour";
+      } else if (diffMins <= 120 && diffMins > 30 && !apt.remindersSent.h2) {
+        reminderType = "2h";
+        reminderKey = "h2";
+        relativeTimeText = "in 2 hours";
       } else if (diffMins <= 30 && diffMins > 0 && !apt.remindersSent.m30) {
         reminderType = "30m";
         reminderKey = "m30";
@@ -98,14 +96,13 @@ const triggerReminderMessage = async (appointment, reminderType, reminderKey, re
         customerName: appointment.customerName,
         date: dateStr,
         time: appointment.preferredTime,
-        projectName: appointment.projectName || "General",
+        projectName: appointment.projectName || "General Site Visit",
         relativeTimeText
       });
       success = true;
     } catch (err) {
       metaResponse = { error: err.message };
       if (attempt < 3) {
-        // Sleep 2 seconds before retry
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
     }
@@ -138,18 +135,95 @@ const triggerReminderMessage = async (appointment, reminderType, reminderKey, re
 };
 
 /**
- * Initialize node-cron task
+ * Smart Customer Follow-up Daemon (Feature 11)
+ * Scans for WhatsApp customers who are inactive and sends reminders/offers.
+ */
+export const checkAndSendFollowUps = async () => {
+  console.log("[Reminder Service] Scanning for inactive customers to send smart follow-ups...");
+  try {
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const threeDaysMs = 3 * oneDayMs;
+    const sevenDaysMs = 7 * oneDayMs;
+
+    // Scan customers registered from WhatsApp who have not purchased/closed yet
+    const customers = await Customer.find({
+      source: "WhatsApp",
+      stage: { $nin: ["Closed", "Site Visit Booked"] }
+    });
+
+    for (const cust of customers) {
+      const inactiveMs = now - new Date(cust.lastActiveAt || cust.updatedAt).getTime();
+
+      // 7 days inactive: send offers
+      if (inactiveMs >= sevenDaysMs && !cust.followUp7daySent) {
+        console.log(`[Follow-up] Sending 7-day template follow-up to ${cust.name} (${cust.phone})`);
+        try {
+          await whatsappService.sendTemplateMessage(cust.phone, "followup_7day", "en_US", [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: cust.name }]
+            }
+          ]);
+          cust.followUp7daySent = true;
+          await cust.save();
+        } catch (err) {
+          console.warn(`⚠️ Meta template followup_7day failed. Sending text fallback:`, err.message);
+          await whatsappService.sendTextMessage(cust.phone, `Hello ${cust.name}, latest offers available. Would you like details?`).catch(() => {});
+          cust.followUp7daySent = true;
+          await cust.save();
+        }
+      }
+      // 3 days inactive: prompt site visit
+      else if (inactiveMs >= threeDaysMs && !cust.followUp3daySent && !cust.followUp7daySent) {
+        console.log(`[Follow-up] Sending 3-day template follow-up to ${cust.name} (${cust.phone})`);
+        try {
+          await whatsappService.sendTemplateMessage(cust.phone, "followup_3day", "en_US", [
+            {
+              type: "body",
+              parameters: [{ type: "text", text: cust.name }]
+            }
+          ]);
+          cust.followUp3daySent = true;
+          await cust.save();
+        } catch (err) {
+          console.warn(`⚠️ Meta template followup_3day failed. Sending text fallback:`, err.message);
+          await whatsappService.sendTextMessage(cust.phone, `Hello ${cust.name}, interested in scheduling a visit?`).catch(() => {});
+          cust.followUp3daySent = true;
+          await cust.save();
+        }
+      }
+      // 24 hours inactive: check in
+      else if (inactiveMs >= oneDayMs && !cust.followUp24hSent && !cust.followUp3daySent && !cust.followUp7daySent) {
+        console.log(`[Follow-up] Sending 24h free-text follow-up to ${cust.name} (${cust.phone})`);
+        try {
+          await whatsappService.sendTextMessage(cust.phone, `Hello 👋 Need more information? Reply anytime.`);
+          cust.followUp24hSent = true;
+          await cust.save();
+        } catch (err) {
+          console.error(`❌ Follow-up 24h send failed:`, err.message);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Reminder Service] Error running follow-ups scan:", err.message);
+  }
+};
+
+/**
+ * Initialize consolidated node-cron tasks (Interval: every 15 minutes)
  */
 export const initReminderCron = () => {
-  // Runs every 15 minutes
   cron.schedule("*/15 * * * *", async () => {
     await checkAndSendReminders();
+    await checkAndSendFollowUps();
   });
-  console.log("⏰ node-cron reminders task registered successfully (Interval: 15 mins).");
+  console.log("⏰ Consolidated node-cron reminders & smart follow-ups task registered (Interval: 15 mins).");
 };
 
 export default {
   getAppointmentDateTime,
   checkAndSendReminders,
+  checkAndSendFollowUps,
   initReminderCron,
 };

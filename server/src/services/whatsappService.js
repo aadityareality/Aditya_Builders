@@ -1,5 +1,6 @@
 import axios from "axios";
 import whatsappConfig from "../config/whatsappConfig.js";
+import SiteSettings from "../../models/SiteSettings.js";
 
 /**
  * Helper to construct the API endpoint URL
@@ -286,13 +287,18 @@ export const sendPropertyInquiry = async (to, { property, budget, location }) =>
  * @param {string} details.propertyName - Target construction project
  */
 export const sendAppointmentReminder = async (to, { customerName, date, time, projectName, relativeTimeText }) => {
+  const settings = await SiteSettings.getSettings();
+  const address = settings.address || "Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat";
+  const link = `https://www.google.com/maps?q=${settings.mapLatitude || 21.7484},${settings.mapLongitude || 72.1328}`;
+  const phone = settings.phoneNumbers?.[0] || "+91 99748 58500";
+
   const text = 
-    `Hello ${customerName}\n` +
-    `This is a reminder. Your Site Visit is ${relativeTimeText}.\n` +
-    `Project: ${projectName}\n` +
-    `Date: ${date}\n` +
-    `Time: ${time}\n\n` +
-    `Need to reschedule? Reply YES or NO.`;
+    `🔔 *Reminder*\n\n` +
+    `Your site visit for *${projectName}*\n` +
+    `is scheduled *${relativeTimeText}* at *${time}*.\n\n` +
+    `📍 *Office Address:* ${address}\n` +
+    `🗺️ *Google Maps:* ${link}\n` +
+    `📞 *Contact Number:* ${phone}`;
 
   return sendTextMessage(to, text);
 };

@@ -49,7 +49,7 @@ const adminSchema = new Schema(
      */
     role: {
       type: String,
-      enum: ["superadmin", "editor", "executive", "manager"],
+      enum: ["superadmin", "editor", "executive", "manager", "support"],
       default: "superadmin",
     },
 

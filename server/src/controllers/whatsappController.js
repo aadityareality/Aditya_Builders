@@ -6,9 +6,12 @@ import ConversationState from "../../models/ConversationState.js";
 import Project from "../../models/Project.js";
 import SiteSettings from "../../models/SiteSettings.js";
 import ReminderLog from "../../models/ReminderLog.js";
+import CallbackRequest from "../../models/CallbackRequest.js";
+import InquiryQuestionLog from "../../models/InquiryQuestionLog.js";
 import whatsappConfig from "../config/whatsappConfig.js";
 import whatsappService from "../services/whatsappService.js";
 import Customer from "../../models/Customer.js";
+import Admin from "../../models/Admin.js";
 import Chat from "../../models/Chat.js";
 import Message from "../../models/Message.js";
 import MessageStatus from "../../models/MessageStatus.js";
@@ -68,21 +71,42 @@ const logIncomingToCRM = async (messageObj, customerName, from, cloudinaryUrl = 
     if (existing) return; // Already logged — skip duplicate
 
     // 1. Upsert Customer
-    let customer = await Customer.findOneAndUpdate(
-      { phone: from },
-      {
-        $set: { name: customerName, lastActiveAt: new Date() },
-        $setOnInsert: { leadStatus: "Warm" }
-      },
-      { upsert: true, new: true }
-    );
+    let customer = await Customer.findOne({ phone: from });
+    let isNew = !customer;
+    if (!customer) {
+      customer = new Customer({
+        phone: from,
+        name: customerName || "Customer",
+        source: "WhatsApp",
+        leadStatus: "New",
+        stage: "New",
+        leadScore: 1
+      });
+    } else {
+      if (customerName && (customer.name === "Customer" || !customer.name)) {
+        customer.name = customerName;
+      }
+      customer.lastActiveAt = new Date();
+    }
+
+    if (!customer.assignedExecutive) {
+      await performAutoAssignment(customer);
+    }
+    await customer.save();
 
     // 2. Upsert Chat thread
-    let chat = await Chat.findOneAndUpdate(
-      { customer: customer._id },
-      { $set: { status: "Open" } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    let chat = await Chat.findOne({ customer: customer._id });
+    if (!chat) {
+      chat = new Chat({
+        customer: customer._id,
+        status: "Open"
+      });
+    } else {
+      if (["Closed", "Resolved", "Waiting Customer"].includes(chat.status)) {
+        chat.status = "Open";
+      }
+    }
+    await chat.save();
 
     // 3. Build message body
     let msgBody;
@@ -147,7 +171,7 @@ const logIncomingToCRM = async (messageObj, customerName, from, cloudinaryUrl = 
       customer: await Customer.findById(customer._id)
         .populate("interestedProject", "title")
         .populate("assignedExecutive", "name email")
-    }, customer.assignedExecutive);
+    }, customer.assignedExecutive, chat._id);
 
   } catch (err) {
     console.error("❌ [CRM] logIncomingToCRM Error:", err.message);
@@ -170,6 +194,7 @@ const parseDateStr = (str) => {
 const spamCounter = {};
 
 const isSpamming = (phone) => {
+  if (process.env.NODE_ENV === "test") return false;
   const now = Date.now();
   const oneMinuteAgo = now - 60000;
   
@@ -551,6 +576,12 @@ export const receiveWebhook = async (req, res) => {
           state = null;
         }
 
+        // Automatic Lead record creation and interaction scoring (Feature 10)
+        await upsertLead(from, customerName, textBody, 1);
+
+        // Capture inquiry questions matching keywords (Feature 9)
+        await captureInquiryQuestionIfNeeded(from, textBody, state);
+
         console.log(`\x1b[33m[Chatbot] Incoming trigger:\x1b[0m "${textBody}" from \x1b[35m${from}\x1b[0m`);
         console.log(`\x1b[33m[Chatbot] Current State   :\x1b[0m ${state ? `${state.currentFlow} (Step: ${state.currentStep})` : "stateless"}`);
 
@@ -596,6 +627,18 @@ export const receiveWebhook = async (req, res) => {
           await handleBrochureRequest(from, textBody, state, customerName, message.id);
         } else if (state && state.currentFlow === "reschedule") {
           await handleReschedule(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "project_list_new") {
+          await handleProjectListing(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "project_list_possession") {
+          await handleProjectListing(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "project_detail") {
+          await handleProjectDetail(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "brochure_followup") {
+          await handleBrochureFollowup(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "contact_sales") {
+          await handleContactSales(from, textBody, state, customerName, message.id);
+        } else if (state && state.currentFlow === "callback_request") {
+          await handleCallbackRequest(from, textBody, state, customerName, message.id);
         } else {
           // Standard / Stateless Command router
           if (lowerText === "price" || lowerText === "pricing") {
@@ -609,37 +652,15 @@ export const receiveWebhook = async (req, res) => {
           } else if (lowerText === "brochure") {
             await startBrochureRequestFlow(from, message.id, state);
           } else if (textBody === "1") {
-            // New / Ongoing Projects
-            const projects = await Project.find({ isActive: true, status: "Ongoing" }).sort({ displayOrder: 1 });
-            if (projects.length === 0) {
-              await sendBotReply(from, message.id, "We don't have any ongoing projects listed right now.");
-            } else {
-              const list = projects.map(p => `🏗 *${p.title}*\n📍 Locality: ${p.location}\n💰 Starting Price: ${p.startingPrice || "N/A"}`).join("\n\n");
-              await sendBotReply(from, message.id, `🏢 *Ongoing Projects Catalog:*\n\n${list}\n\nBook a site visit or view brochures by selecting options from the menu!`);
-            }
+            await startProjectListingFlow(from, true, message.id, state);
           } else if (textBody === "2") {
-            // Ready Possession / Completed Projects
-            const projects = await Project.find({ isActive: true, status: "Completed" }).sort({ displayOrder: 1 });
-            if (projects.length === 0) {
-              await sendBotReply(from, message.id, "We don't have any completed projects listed right now.");
-            } else {
-              const list = projects.map(p => `🏢 *${p.title}*\n📍 Locality: ${p.location}\n💰 Price: ${p.startingPrice || "N/A"}`).join("\n\n");
-              await sendBotReply(from, message.id, `🏡 *Ready Possession Catalog:*\n\n${list}`);
-            }
+            await startProjectListingFlow(from, false, message.id, state);
           } else if (textBody === "3") {
             await startSiteVisitBookingFlow(from, message.id, state);
           } else if (textBody === "4") {
             await startBrochureRequestFlow(from, message.id, state);
           } else if (textBody === "5") {
-            const settings = await SiteSettings.getSettings();
-            await sendBotReply(
-              from,
-              message.id,
-              `📞 *Sales Contact Details:*\n\n` +
-              `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
-              `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
-              `Office Hours: ${settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM"}`
-            );
+            await startContactSalesFlow(from, message.id, state);
           } else if (textBody === "6") {
             await sendOfficeLocation(from, message.id);
           } else if (textBody === "7") {
@@ -736,10 +757,416 @@ export const receiveWebhook = async (req, res) => {
     }
   }
 };
-const startSiteVisitBookingFlow = async (phone, messageId = null, currentState = null) => {
+// ── Lead Management & Free-text capture helpers ──────────────────────────────
+const performAutoAssignment = async (customer) => {
+  try {
+    const settings = await SiteSettings.getSettings();
+    const strategy = settings.whatsappAutoAssignmentStrategy || "RoundRobin";
+    
+    const executives = await Admin.find({ role: { $in: ["executive", "manager"] } });
+    if (executives.length === 0) {
+      console.log("[Auto-Assignment] No active executives or managers available.");
+      return;
+    }
+
+    let assignedExec = null;
+
+    if (strategy === "RoundRobin") {
+      let index = settings.lastAssignedExecutiveIndex || 0;
+      if (index >= executives.length) index = 0;
+      
+      assignedExec = executives[index];
+      
+      settings.lastAssignedExecutiveIndex = (index + 1) % executives.length;
+      await settings.save();
+    } else {
+      // LeastBusy
+      const counts = [];
+      for (const exec of executives) {
+        const count = await Customer.countDocuments({
+          assignedExecutive: exec._id,
+          stage: { $ne: "Closed" }
+        });
+        counts.push({ exec, count });
+      }
+      counts.sort((a, b) => a.count - b.count);
+      assignedExec = counts[0].exec;
+    }
+
+    if (assignedExec) {
+      customer.assignedExecutive = assignedExec._id;
+      console.log(`[Auto-Assignment] Assigned ${customer.name} to ${assignedExec.name} (${strategy})`);
+      
+      emitToAdmins("notification", {
+        type: "lead_assigned",
+        title: "Lead Auto-Assigned",
+        body: `New lead ${customer.name} (${customer.phone}) has been assigned to you.`,
+        assignedExecutive: assignedExec._id
+      });
+    }
+  } catch (err) {
+    console.error("❌ Auto-assignment failed:", err.message);
+  }
+};
+
+const upsertLead = async (phone, name, lastMessage, additionalPoints = 0, interestedProjectId = null, stage = null) => {
+  try {
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    let queryPhone = [cleanPhone];
+    if (cleanPhone.startsWith("91") && cleanPhone.length === 12) {
+      queryPhone.push(cleanPhone.substring(2));
+    } else if (cleanPhone.length === 10) {
+      queryPhone.push("91" + cleanPhone);
+    }
+    
+    // Find or create customer matching either format
+    let customer = await Customer.findOne({ phone: { $in: queryPhone } });
+    if (!customer) {
+      customer = new Customer({
+        phone: cleanPhone,
+        name: name || "Customer",
+        source: "WhatsApp",
+        leadStatus: "New",
+        stage: "New",
+        leadScore: 0
+      });
+    }
+
+    if (name && (customer.name === "Customer" || !customer.name)) {
+      customer.name = name;
+    }
+    customer.lastMessage = lastMessage || "";
+    customer.lastMessageAt = new Date();
+    customer.lastActiveAt = new Date();
+    customer.source = "WhatsApp"; // Ensure WhatsApp source is saved
+
+    if (!customer.assignedExecutive) {
+      await performAutoAssignment(customer);
+    }
+    
+    if (additionalPoints > 0) {
+      customer.leadScore = (customer.leadScore || 0) + additionalPoints;
+    }
+
+    if (interestedProjectId) {
+      customer.interestedProject = interestedProjectId;
+    }
+
+    if (stage) {
+      customer.stage = stage;
+    }
+
+    // Reset follow-up flags on customer response/conversion
+    customer.followUp24hSent = false;
+    customer.followUp3daySent = false;
+    customer.followUp7daySent = false;
+
+    await customer.save();
+    return customer;
+  } catch (err) {
+    console.error("❌ Error in upsertLead:", err.message);
+  }
+};
+
+const captureInquiryQuestionIfNeeded = async (phone, textBody, state) => {
+  const keywords = ["price", "location", "configuration", "availability", "loan", "parking", "amenities", "pricing"];
+  const lowerText = textBody.toLowerCase();
+  
+  const matchedKeywords = keywords.filter(kw => lowerText.includes(kw));
+  if (matchedKeywords.length > 0) {
+    let projectId = null;
+    let projectName = "";
+    
+    if (state && state.collectedData && state.collectedData.projectId) {
+      projectId = state.collectedData.projectId;
+      const proj = await Project.findById(projectId);
+      if (proj) projectName = proj.title;
+    }
+    
+    console.log(`\x1b[35m[Inquiry Capture] Matched keywords: [${matchedKeywords.join(", ")}] in query from ${phone}\x1b[0m`);
+    
+    const inquiryLog = await InquiryQuestionLog.create({
+      phone: phone.replace(/[^0-9]/g, ""),
+      question: textBody,
+      project: projectId,
+      projectName: projectName,
+      keywords: matchedKeywords
+    });
+    
+    // Notify admin
+    const adminAlertText = 
+      `❓ *NEW INQUIRY QUESTION CAPTURED*\n\n` +
+      `Phone: ${phone}\n` +
+      `Project Context: ${projectName || "None"}\n` +
+      `Keywords Matched: ${matchedKeywords.join(", ")}\n` +
+      `Question: "${textBody}"`;
+      
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText).catch(err =>
+      console.error("⚠️ Failed to send admin inquiry notification:", err.message)
+    );
+
+    return inquiryLog;
+  }
+  return null;
+};
+
+// ── Project Listing state machines (Features 1 & 2) ──────────────────────────
+const startProjectListingFlow = async (phone, isNew, messageId = null, currentState = null) => {
+  const statusFilter = isNew ? ["Ongoing", "Upcoming"] : ["Completed"];
+  const projects = await Project.find({ isActive: true, status: { $in: statusFilter } }).sort({ displayOrder: 1 });
+  
+  if (projects.length === 0) {
+    const text = isNew ? "We don't have any ongoing or upcoming projects listed right now." : "We don't have any completed projects listed right now.";
+    await sendBotReply(phone, messageId, text);
+    return;
+  }
+
+  const titleHeader = isNew ? "🏡 Available Projects" : "🏡 Ready Possession Projects";
+  const listText = projects.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n");
+  
+  const data = {
+    projectList: projects.map(p => p._id),
+    isNew: isNew
+  };
+
+  const flow = isNew ? "project_list_new" : "project_list_possession";
+  await updateConversationState(phone, flow, 1, data, currentState);
+
+  await sendBotReply(phone, messageId, `${titleHeader}\n\n${listText}\n\nReply with the project number.`);
+};
+
+const handleProjectListing = async (phone, textBody, state, customerName, messageId = null) => {
+  const data = state.collectedData || {};
+  const idx = parseInt(textBody, 10) - 1;
+
+  if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
+    await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the list:");
+    return;
+  }
+
+  const projectId = data.projectList[idx];
+  const project = await Project.findById(projectId);
+
+  if (!project) {
+    await sendBotReply(phone, messageId, "Project not found. Returning to main menu.");
+    await ConversationState.deleteOne({ phone });
+    await sendWelcomeMenu(phone);
+    return;
+  }
+
+  // Notify admin project interest shown (Feature 12)
+  const adminText = `👁️ *PROJECT INTEREST SHOWN*\n\nCustomer *${customerName}* (${phone}) is viewing details for project *${project.title}*.`;
+  await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminText).catch(() => {});
+
+  // Send Cover Image
+  if (project.coverImage && project.coverImage.url) {
+    await whatsappService.sendImage(phone, project.coverImage.url, `Cover Image of ${project.title}`).catch(() => {});
+  }
+
+  let detailsText = "";
+  if (data.isNew) {
+    detailsText = 
+      `🏢 *${project.title}*\n` +
+      `📍 *Location:* ${project.location}\n` +
+      `📐 *Configuration:* ${project.configuration || "N/A"}\n` +
+      `💰 *Starting Price:* ${project.startingPrice || "N/A"}\n` +
+      `📜 *RERA Number:* ${project.reraNumber || "N/A"}\n` +
+      `🔑 *Possession:* ${project.possessionDate || "N/A"}\n\n` +
+      `📝 *Description:*\n${project.description}\n\n` +
+      `Reply:\n` +
+      `1️⃣ Download Brochure\n` +
+      `2️⃣ Book Site Visit\n` +
+      `3️⃣ Talk to Sales\n` +
+      `9️⃣ Back`;
+  } else {
+    detailsText = 
+      `🏢 *${project.title}* [Ready Possession]\n` +
+      `📍 *Location:* ${project.location}\n` +
+      `📐 *Super Built-Up Area:* ${project.saleableArea?.minSqFt || "N/A"} sq.ft\n` +
+      `💰 *Price:* ${project.startingPrice || "N/A"}\n` +
+      `🏡 *Available Units:* ${project.availableUnits || 0}\n\n` +
+      `📝 *Description:*\n${project.description}\n\n` +
+      `Reply:\n` +
+      `1️⃣ Book Site Visit\n` +
+      `2️⃣ Talk to Sales\n` +
+      `9️⃣ Back`;
+  }
+
+  const detailStateData = {
+    projectId: project._id,
+    isNew: data.isNew
+  };
+  await updateConversationState(phone, "project_detail", 1, detailStateData, state);
+  await sendBotReply(phone, null, detailsText);
+};
+
+const handleProjectDetail = async (phone, textBody, state, customerName, messageId = null) => {
+  const data = state.collectedData || {};
+  const choice = textBody.trim();
+
+  if (data.isNew) {
+    if (choice === "1") {
+      const brochureStateData = {
+        projectList: [data.projectId],
+      };
+      const mockState = {
+        currentFlow: "brochure_request",
+        currentStep: 1,
+        collectedData: brochureStateData
+      };
+      await handleBrochureRequest(phone, "1", mockState, customerName, messageId);
+    } else if (choice === "2") {
+      const appointmentData = {
+        projectId: data.projectId,
+        projectName: ""
+      };
+      const projectObj = await Project.findById(data.projectId);
+      if (projectObj) appointmentData.projectName = projectObj.title;
+
+      await startSiteVisitBookingFlow(phone, messageId, state, appointmentData);
+    } else if (choice === "3") {
+      await startContactSalesFlow(phone, messageId, state);
+    } else if (choice === "9") {
+      await startProjectListingFlow(phone, true, messageId, state);
+    } else {
+      await sendBotReply(phone, messageId, "Please choose one of the available options (1, 2, 3, or 9):");
+    }
+  } else {
+    if (choice === "1") {
+      const appointmentData = {
+        projectId: data.projectId,
+        projectName: ""
+      };
+      const projectObj = await Project.findById(data.projectId);
+      if (projectObj) appointmentData.projectName = projectObj.title;
+
+      await startSiteVisitBookingFlow(phone, messageId, state, appointmentData);
+    } else if (choice === "2") {
+      await startContactSalesFlow(phone, messageId, state);
+    } else if (choice === "9") {
+      await startProjectListingFlow(phone, false, messageId, state);
+    } else {
+      await sendBotReply(phone, messageId, "Please choose one of the available options (1, 2, or 9):");
+    }
+  }
+};
+
+// ── Brochure Follow-up state machine (Feature 3) ────────────────────────────
+const handleBrochureFollowup = async (phone, textBody, state, customerName, messageId = null) => {
+  const data = state.collectedData || {};
+  const lowerText = textBody.toLowerCase();
+
+  if (lowerText === "yes") {
+    const projectId = data.projectId;
+    const project = await Project.findById(projectId);
+    const appointmentData = {
+      projectId: projectId,
+      projectName: project ? project.title : ""
+    };
+    await updateConversationState(phone, "site_visit_booking", 1, appointmentData, state);
+    await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
+  } else {
+    await ConversationState.deleteOne({ phone });
+    await sendBotReply(phone, messageId, "Thank you! Returning to main menu...");
+    await sendWelcomeMenu(phone);
+  }
+};
+
+// ── Contact Sales & Callback state machines (Features 5 & 6) ───────────────────
+const startContactSalesFlow = async (phone, messageId = null, currentState = null) => {
+  const settings = await SiteSettings.getSettings();
+  const salesPhone = settings.whatsappNumber || settings.phoneNumbers?.[0] || "919974858500";
+  const email = settings.email || "aadityareality1@gmail.com";
+  const hours = settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM";
+  
+  const text = 
+    `📞 *Talk to our Sales Team:*\n\n` +
+    `👤 *Executive Name:* Aaditya Sales Team\n` +
+    `☎️ *Phone:* ${salesPhone}\n` +
+    `📧 *Email:* ${email}\n` +
+    `🕒 *Office Timing:* ${hours}\n\n` +
+    `Would you like us to call you?\n` +
+    `Reply with *YES* or *NO*:`;
+
+  await updateConversationState(phone, "contact_sales", 1, {}, currentState);
+  await sendBotReply(phone, messageId, text);
+};
+
+const handleContactSales = async (phone, textBody, state, customerName, messageId = null) => {
+  const lowerText = textBody.toLowerCase();
+  
+  if (lowerText === "yes") {
+    await updateConversationState(phone, "callback_request", 1, {}, state);
+    await sendBotReply(phone, messageId, "Sure! Let's record a callback request.\n\nFirst, please enter your **Full Name**:");
+  } else {
+    await ConversationState.deleteOne({ phone });
+    await sendBotReply(phone, messageId, "Thank you. Returning to main menu...");
+    await sendWelcomeMenu(phone);
+  }
+};
+
+const handleCallbackRequest = async (phone, textBody, state, customerName, messageId = null) => {
+  const step = state.currentStep;
+  const data = state.collectedData || {};
+
+  if (step === 1) {
+    data.name = textBody;
+    await updateConversationState(phone, "callback_request", 2, data, state);
+    await sendBotReply(phone, messageId, `Got it, ${textBody}!\n\nPlease enter your preferred **Phone Number** (10 digits):`);
+  } else if (step === 2) {
+    const cleanNum = textBody.replace(/[^0-9]/g, "");
+    if (cleanNum.length >= 10) {
+      data.phone = cleanNum;
+      await updateConversationState(phone, "callback_request", 3, data, state);
+      await sendBotReply(phone, messageId, "When is the best time for us to call you? (e.g. Morning, Afternoon, 5:00 PM, Anytime):");
+    } else {
+      await sendBotReply(phone, messageId, "Please enter a valid 10-digit phone number:");
+    }
+  } else if (step === 3) {
+    data.preferredTime = textBody;
+    await updateConversationState(phone, "callback_request", 4, data, state);
+    await sendBotReply(phone, messageId, "What is the reason for the callback? (e.g. pricing info, project inquiry, site visit details):");
+  } else if (step === 4) {
+    data.reason = textBody;
+    
+    // Save CallbackRequest (Feature 6)
+    const callback = await CallbackRequest.create({
+      name: data.name,
+      phone: data.phone,
+      preferredTime: data.preferredTime,
+      reason: data.reason,
+      status: "New"
+    });
+
+    // Notify Customer
+    await sendBotReply(
+      phone,
+      messageId,
+      `✅ *Callback Request Submitted!*\n\n` +
+      `We have registered your request, ${data.name}.\n` +
+      `Our sales executive will contact you at *${data.phone}* during *${data.preferredTime}*.\n\n` +
+      `Thank you.`
+    );
+
+    // Notify Admin (Feature 12)
+    const adminAlert = 
+      `📞 *NEW CALLBACK REQUEST*\n\n` +
+      `Name: ${data.name}\n` +
+      `Phone: ${data.phone}\n` +
+      `Preferred Time: ${data.preferredTime}\n` +
+      `Reason: ${data.reason}`;
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlert).catch(() => {});
+
+    // Clear state
+    await ConversationState.deleteOne({ phone });
+  }
+};
+
+// ── Site Visit Booking state machine (Feature 7) ─────────────────────────────
+const startSiteVisitBookingFlow = async (phone, messageId = null, currentState = null, prefilledData = {}) => {
   await ConversationState.deleteMany({ phone }); // reset
-  await updateConversationState(phone, "site_visit_booking", 1, {}, currentState);
-  await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
+  await updateConversationState(phone, "site_visit_booking", 1, prefilledData, currentState);
+  await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please enter your **Full Name**:");
 };
 
 const handleSiteVisitBooking = async (phone, textBody, state, customerName, messageId = null) => {
@@ -766,21 +1193,35 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
         return;
       }
     }
-
-    // List active projects
-    const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
-    if (projects.length === 0) {
-      data.projectId = null;
-      data.projectName = "General Site Visit";
-      await updateConversationState(phone, "site_visit_booking", 4, data, state);
-      await sendBotReply(phone, messageId, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
-    } else {
-      const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
-      data.projectList = projects.map(p => p._id);
-      await updateConversationState(phone, "site_visit_booking", 3, data, state);
-      await sendBotReply(phone, messageId, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
-    }
+    await updateConversationState(phone, "site_visit_booking", 3, data, state);
+    await sendBotReply(phone, messageId, "Please enter your **Email Address**:");
   } else if (step === 3) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(textBody)) {
+      await sendBotReply(phone, messageId, "Invalid email format. Please enter a valid email address (e.g. customer@example.com):");
+      return;
+    }
+    data.email = textBody.toLowerCase().trim();
+
+    // Check if project is already pre-selected
+    if (data.projectId) {
+      await updateConversationState(phone, "site_visit_booking", 5, data, state);
+      await sendBotReply(phone, messageId, `Excellent. You've pre-selected *${data.projectName}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
+    } else {
+      const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+      if (projects.length === 0) {
+        data.projectId = null;
+        data.projectName = "General Site Visit";
+        await updateConversationState(phone, "site_visit_booking", 5, data, state);
+        await sendBotReply(phone, messageId, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
+      } else {
+        const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
+        data.projectList = projects.map(p => p._id);
+        await updateConversationState(phone, "site_visit_booking", 4, data, state);
+        await sendBotReply(phone, messageId, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
+      }
+    }
+  } else if (step === 4) {
     const idx = parseInt(textBody, 10) - 1;
     if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
       await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the catalog list:");
@@ -791,46 +1232,104 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
     
     data.projectId = project._id;
     data.projectName = project.title;
-    await updateConversationState(phone, "site_visit_booking", 4, data, state);
+    await updateConversationState(phone, "site_visit_booking", 5, data, state);
     await sendBotReply(phone, messageId, `Excellent. You've chosen *${project.title}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
-  } else if (step === 4) {
+  } else if (step === 5) {
     const parsedDate = parseDateStr(textBody);
     if (!parsedDate) {
       await sendBotReply(phone, messageId, "Invalid date format. Please type the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
       return;
     }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (parsedDate < today) {
+      await sendBotReply(phone, messageId, "The date cannot be in the past. Please enter a future date (Format: DD/MM/YYYY):");
+      return;
+    }
     data.date = textBody;
-    await updateConversationState(phone, "site_visit_booking", 5, data, state);
-    await sendBotReply(phone, messageId, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
-  } else if (step === 5) {
-    data.time = textBody;
     await updateConversationState(phone, "site_visit_booking", 6, data, state);
-    await sendBotReply(phone, messageId, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
+    await sendBotReply(phone, messageId, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
   } else if (step === 6) {
+    data.time = textBody;
+    await updateConversationState(phone, "site_visit_booking", 7, data, state);
+    await sendBotReply(phone, messageId, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
+  } else if (step === 7) {
     const visitors = parseInt(textBody, 10);
     if (isNaN(visitors) || visitors <= 0) {
       await sendBotReply(phone, messageId, "Please enter a valid positive number for the visitor count:");
       return;
     }
     data.visitors = visitors;
-    await updateConversationState(phone, "site_visit_booking", 7, data, state);
-    await sendBotReply(phone, messageId, "Any **Special Notes** or requests? (Reply with *SKIP* or *NONE* if none):");
-  } else if (step === 7) {
-    const notes = ["SKIP", "NONE"].includes(textBody.toUpperCase()) ? "" : textBody;
-    const dateObj = parseDateStr(data.date);
+    await updateConversationState(phone, "site_visit_booking", 8, data, state);
+    await sendBotReply(phone, messageId, "Any **Special Requirements** or requests? (Reply with *SKIP* or *NONE* if none):");
+  } else if (step === 8) {
+    data.notes = ["SKIP", "NONE"].includes(textBody.toUpperCase()) ? "" : textBody;
+    await updateConversationState(phone, "site_visit_booking", 9, data, state);
+    
+    // Confirm prompt
+    const confirmPrompt = 
+      `📝 *Review Booking Details:*\n\n` +
+      `👤 *Name:* ${data.name}\n` +
+      `☎️ *Phone:* ${data.phone}\n` +
+      `📧 *Email:* ${data.email}\n` +
+      `🏢 *Project:* ${data.projectName}\n` +
+      `📅 *Date:* ${data.date}\n` +
+      `🕒 *Time:* ${data.time}\n` +
+      `👥 *Visitors:* ${data.visitors}\n` +
+      `📝 *Notes:* ${data.notes || "None"}\n\n` +
+      `Confirm Booking?\n` +
+      `Reply with *YES* or *NO*:`;
+    await sendBotReply(phone, messageId, confirmPrompt);
+  } else if (step === 9) {
+    if (textBody.toUpperCase() !== "YES") {
+      await ConversationState.deleteOne({ phone });
+      await sendBotReply(phone, messageId, "Booking request cancelled. Returning to main menu...");
+      await sendWelcomeMenu(phone);
+      return;
+    }
 
-    // Save appointment immediately
+    const dateObj = parseDateStr(data.date);
+    
+    let queryProjectId = null;
+    if (data.projectId) {
+      try {
+        queryProjectId = mongoose.Types.ObjectId.createFromHexString(String(data.projectId));
+      } catch (err) {
+        queryProjectId = data.projectId;
+      }
+    }
+
+    // Prevent duplicate appointments check (Feature 17)
+    const existingApt = await Appointment.findOne({
+      customerPhone: data.phone,
+      project: queryProjectId || null,
+      preferredDate: dateObj,
+      preferredTime: data.time,
+      status: { $in: ["Confirmed", "Rescheduled"] }
+    });
+
+    if (existingApt) {
+      await sendBotReply(phone, messageId, "⚠️ You already have a confirmed site visit scheduled for this project at this date and time. To prevent duplicates, we have aborted this duplicate booking request.");
+      await ConversationState.deleteOne({ phone });
+      return;
+    }
+
+    // Save appointment (Feature 7)
     const apt = await Appointment.create({
       customerName: data.name,
       customerPhone: data.phone,
+      customerEmail: data.email,
       project: data.projectId || null,
       projectName: data.projectName,
       preferredDate: dateObj,
       preferredTime: data.time,
       numberOfVisitors: data.visitors,
-      notes: notes,
+      notes: data.notes,
       status: "Confirmed"
     });
+
+    // Update CRM stage (Feature 10)
+    await upsertLead(phone, data.name, `Booked site visit for ${data.projectName}`, 5, data.projectId, "Site Visit Booked");
 
     // Send customer confirmation
     const customerConfirmText = 
@@ -844,26 +1343,28 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
 
     await sendBotReply(phone, messageId, customerConfirmText);
 
-    // Send admin notification
+    // Send admin notification (Feature 12)
     const adminAlertText = 
-      `📅 *NEW SITE VISIT*\n\n` +
+      `📅 *NEW SITE VISIT BOOKED*\n\n` +
       `Name: ${data.name}\n` +
       `Phone: ${data.phone}\n` +
+      `Email: ${data.email}\n` +
       `Project: ${data.projectName}\n` +
       `Date: ${data.date}\n` +
       `Time: ${data.time}\n` +
       `Visitors: ${data.visitors}\n` +
-      `Notes: ${notes || "None"}\n` +
+      `Notes: ${data.notes || "None"}\n` +
       `Reference ID: ${apt.referenceId}`;
 
-    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText);
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText).catch(() => {});
 
     // Clear state
     await ConversationState.deleteOne({ phone });
-    console.log(`[Chatbot] Stateful visit booked successfully. Reference: ${apt.referenceId}`);
+    console.log(`[Chatbot] Site visit booked successfully. Reference: ${apt.referenceId}`);
   }
 };
 
+// ── Brochure Download Flow (Feature 3) ──────────────────────────────────────
 const startBrochureRequestFlow = async (phone, messageId = null, currentState = null) => {
   const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
   if (projects.length === 0) {
@@ -895,7 +1396,22 @@ const handleBrochureRequest = async (phone, textBody, state, customerName, messa
       const fileName = `${project.title.replace(/\s+/g, "_")}_Brochure.pdf`;
       await sendBotDocument(phone, messageId, project.brochure.url, fileName, `Brochure for ${project.title}`);
       
-      // Log download success
+      if (project.coverImage && project.coverImage.url) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await whatsappService.sendImage(phone, project.coverImage.url, `Cover Image of ${project.title}`).catch(() => {});
+      }
+
+      const summaryText = 
+        `📄 *Brochure Downloaded Successfully!*\n\n` +
+        `🏢 *Project:* ${project.title}\n` +
+        `📍 *Location:* ${project.location}\n` +
+        `📐 *Configuration:* ${project.configuration || "N/A"}\n` +
+        `💰 *Starting Price:* ${project.startingPrice || "N/A"}`;
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await sendBotReply(phone, null, summaryText);
+
+      // Log download success (Feature 16)
       await BrochureDownload.create({
         customerPhone: phone,
         projectId: project._id,
@@ -906,39 +1422,26 @@ const handleBrochureRequest = async (phone, textBody, state, customerName, messa
       // Increment project downloads
       project.downloadCount = (project.downloadCount || 0) + 1;
       await project.save();
+
+      // Notify admin (Feature 12)
+      const adminText = `📥 *BROCHURE DOWNLOADED*\n\nCustomer *${customerName}* (${phone}) downloaded the brochure for *${project.title}*.`;
+      await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminText).catch(() => {});
+
     } catch (err) {
       console.error("❌ Failed to send brochure document:", err.message);
-      await BrochureDownload.create({
-        customerPhone: phone,
-        projectId: project._id,
-        projectName: project.title,
-        status: "failed"
-      });
       await sendBotReply(phone, messageId, "Sorry, we encountered a delivery issue. Please try downloading again later.");
     }
   } else {
-    // Fallback if missing
-    await sendBotReply(phone, messageId, `Brochure for this project isn't available yet. Would you like to speak with our sales team instead?`);
-    
-    // Log failure
-    await BrochureDownload.create({
-      customerPhone: phone,
-      projectId: project._id,
-      projectName: project.title,
-      status: "failed"
-    });
-
-    // Notify admin
-    const adminText = 
-      `⚠️ *BROCHURE UNAVAILABLE ALERT*\n\n` +
-      `Customer *${customerName}* (${phone}) requested a brochure for project *${project.title}*, but no brochure file is uploaded in the settings area.`;
-    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminText);
+    await sendBotReply(phone, messageId, `Brochure for *${project.title}* isn't available yet.`);
   }
 
-  // Clear state
-  await ConversationState.deleteOne({ phone });
+  // Transition to brochure followup stage (Feature 3)
+  const followUpData = { projectId: project._id };
+  await updateConversationState(phone, "brochure_followup", 1, followUpData, state);
+  await sendBotReply(phone, null, "Would you like to book a site visit?\n\nReply with *YES* or *NO*:");
 };
 
+// ── Rescheduling Flow (Feature 7 / Existing) ───────────────────────────────
 const handleReschedule = async (phone, textBody, state, customerName, messageId = null) => {
   const step = state.currentStep;
   const data = state.collectedData || {};
@@ -949,11 +1452,16 @@ const handleReschedule = async (phone, textBody, state, customerName, messageId 
       await sendBotReply(phone, messageId, "Invalid date format. Please reply with the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
       return;
     }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (parsedDate < today) {
+      await sendBotReply(phone, messageId, "Rescheduled date cannot be in the past. Please enter a future date (Format: DD/MM/YYYY):");
+      return;
+    }
     data.newDate = textBody;
     await updateConversationState(phone, "reschedule", 2, data, state);
     await sendBotReply(phone, messageId, "Please enter your preferred **New Time** (e.g. 10:30 AM or 4:00 PM):");
   } else if (step === 2) {
-    // Find latest confirmed/rescheduled appointment
     const apt = await Appointment.findOne({
       customerPhone: phone,
       status: { $in: ["Confirmed", "Rescheduled"] }
@@ -966,10 +1474,9 @@ const handleReschedule = async (phone, textBody, state, customerName, messageId 
       apt.preferredDate = dateObj;
       apt.preferredTime = textBody;
       apt.status = "Rescheduled";
-      apt.remindersSent = { h24: false, h3: false, h1: false, m30: false }; // reset reminders
+      apt.remindersSent = { h24: false, h3: false, h2: false, h1: false, m30: false }; // Reset reminders for new schedule
       await apt.save();
 
-      // Confirm to customer
       const confirmText = 
         `Hello ${apt.customerName}\n` +
         `Your Site Visit is Confirmed (Rescheduled).\n` +

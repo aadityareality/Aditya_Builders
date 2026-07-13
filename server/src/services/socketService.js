@@ -15,6 +15,8 @@ const parseCookies = (cookieString) => {
   }, {});
 };
 
+const onlineAdmins = new Map(); // Map of socket.id -> admin info
+
 export const initSocket = (server) => {
   io = new Server(server, {
     cors: {
@@ -53,24 +55,58 @@ export const initSocket = (server) => {
   io.on("connection", (socket) => {
     console.log(`🔌 CRM Socket Connected: ${socket.admin.name} [Role: ${socket.admin.role}] (ID: ${socket.id})`);
     
+    // Track online admin state
+    onlineAdmins.set(socket.id, {
+      id: socket.admin._id.toString(),
+      name: socket.admin.name,
+      role: socket.admin.role
+    });
+
+    // Broadcast updated online admins list
+    const getUniqueOnlineAdmins = () => {
+      const unique = {};
+      onlineAdmins.forEach(val => {
+        unique[val.id] = val;
+      });
+      return Object.values(unique);
+    };
+
+    io.to("admins").emit("online_admins_list", getUniqueOnlineAdmins());
+
     // Admins general broadcast room
     socket.join("admins");
 
     // Executive-specific private subscription room
     socket.join(`executive_${socket.admin._id.toString()}`);
 
-    // Typing broadcasts
+    // Join room for specific conversation to route targeted events
+    socket.on("join_chat", (chatId) => {
+      socket.join(`chat_${chatId}`);
+      console.log(`🔌 Admin ${socket.admin.name} joined chat room: chat_${chatId}`);
+    });
+
+    socket.on("leave_chat", (chatId) => {
+      socket.leave(`chat_${chatId}`);
+      console.log(`🔌 Admin ${socket.admin.name} left chat room: chat_${chatId}`);
+    });
+
+    // Targeted Typing broadcasts inside specific chat room context
     socket.on("typing", (data) => {
-      socket.to("admins").emit("typing", {
-        adminId: socket.admin._id,
-        adminName: socket.admin.name,
-        customerId: data.customerId,
-        isTyping: data.isTyping
-      });
+      const { chatId, isTyping } = data;
+      if (chatId) {
+        socket.to(`chat_${chatId}`).emit("typing", {
+          adminId: socket.admin._id,
+          adminName: socket.admin.name,
+          chatId,
+          isTyping
+        });
+      }
     });
 
     socket.on("disconnect", () => {
       console.log(`🔌 CRM Socket Disconnected: ${socket.admin.name} (ID: ${socket.id})`);
+      onlineAdmins.delete(socket.id);
+      io.to("admins").emit("online_admins_list", getUniqueOnlineAdmins());
     });
   });
 
@@ -85,10 +121,15 @@ export const getIO = () => {
  * Emit events to connected admin clients.
  * Filters/routes message events based on assignments if needed, but defaults to general broadcasting.
  */
-export const emitToAdmins = (eventName, data, assignedExecutiveId = null) => {
+export const emitToAdmins = (eventName, data, assignedExecutiveId = null, chatId = null) => {
   if (!io) return;
 
-  // Emit to all general listening admins (superadmin, managers, editor)
+  // Emit to targeted conversation room
+  if (chatId) {
+    io.to(`chat_${chatId.toString()}`).emit(eventName, data);
+  }
+
+  // Emit to all general listening admins
   io.to("admins").emit(eventName, data);
 
   // Additionally emit to the assigned executive's private room

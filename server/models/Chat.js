@@ -12,7 +12,7 @@ const chatSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["Open", "Closed", "Pending", "Archived"],
+      enum: ["Open", "Assigned", "Waiting Customer", "Closed", "Spam", "Blocked", "Resolved"],
       default: "Open",
     },
     startedAt: {

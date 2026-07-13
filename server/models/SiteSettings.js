@@ -147,6 +147,15 @@ const siteSettingsSchema = new Schema(
       url:      { type: String, default: null },
       publicId: { type: String, default: null },
     },
+    whatsappAutoAssignmentStrategy: {
+      type: String,
+      enum: ["RoundRobin", "LeastBusy"],
+      default: "RoundRobin",
+    },
+    lastAssignedExecutiveIndex: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

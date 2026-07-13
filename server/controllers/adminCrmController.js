@@ -4,6 +4,9 @@ import Message from "../models/Message.js";
 import MessageStatus from "../models/MessageStatus.js";
 import Admin from "../models/Admin.js";
 import Project from "../models/Project.js";
+import CallbackRequest from "../models/CallbackRequest.js";
+import BrochureDownload from "../models/BrochureDownload.js";
+import Appointment from "../models/Appointment.js";
 import catchAsync from "../utils/catchAsync.js";
 import whatsappService from "../src/services/whatsappService.js";
 import whatsappConfig from "../src/config/whatsappConfig.js";
@@ -14,7 +17,7 @@ import { emitToAdmins } from "../src/services/socketService.js";
  * Fetch conversation list with status, lead status, search, and role filters
  */
 export const getConversations = catchAsync(async (req, res) => {
-  const { status, leadStatus, search, unread, assigned, page = 1, limit = 50 } = req.query;
+  const { status, leadStatus, search, unread, assigned, filterType, page = 1, limit = 50 } = req.query;
 
   const matchQuery = {};
 
@@ -33,19 +36,60 @@ export const getConversations = catchAsync(async (req, res) => {
     matchQuery.leadStatus = leadStatus;
   }
 
+  // Multi-filter queries (Feature 10 & 11)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (filterType) {
+    if (filterType === "unread") {
+      matchQuery.unreadCount = { $gt: 0 };
+    } else if (filterType === "today") {
+      matchQuery.lastMessageAt = { $gte: today };
+    } else if (filterType === "high_priority") {
+      matchQuery.priority = { $in: ["High", "Urgent"] };
+    } else if (filterType === "appointments") {
+      const appts = await Appointment.find({ status: { $in: ["Confirmed", "Rescheduled"] } }).select("customerPhone");
+      const phones = appts.map(a => a.customerPhone);
+      matchQuery.phone = { $in: phones };
+    } else if (filterType === "new") {
+      matchQuery.leadStatus = "New";
+    } else if (filterType === "interested") {
+      matchQuery.leadStatus = "Interested";
+    } else if (filterType === "booked_visits") {
+      matchQuery.leadStatus = "Booked Visit";
+    } else if (filterType === "won") {
+      matchQuery.leadStatus = "Won";
+    } else if (filterType === "lost") {
+      matchQuery.leadStatus = "Lost";
+    }
+  }
+
   if (unread === "true") {
     matchQuery.unreadCount = { $gt: 0 };
   }
 
-  // Search filter across customer details or linked project/reference ID
+  // Search filter across customer details, location, tags, and message content (Feature 10 & 11)
   if (search) {
     const searchRegex = new RegExp(search, "i");
-    matchQuery.$or = [
+    const searchConditions = [
       { name: searchRegex },
       { phone: searchRegex },
       { email: searchRegex },
-      { tags: { $in: [searchRegex] } }
+      { tags: { $in: [searchRegex] } },
+      { city: searchRegex },
+      { state: searchRegex }
     ];
+
+    // Search message body content
+    const matchingMessages = await Message.find({ body: searchRegex, isDeleted: { $ne: true } }).select("chat");
+    const chatIds = matchingMessages.map(m => m.chat);
+    if (chatIds.length > 0) {
+      const chatObjs = await Chat.find({ _id: { $in: chatIds } }).select("customer");
+      const customerIdsFromMessages = chatObjs.map(c => c.customer);
+      searchConditions.push({ _id: { $in: customerIdsFromMessages } });
+    }
+
+    matchQuery.$or = searchConditions;
   }
 
   const skip = (Number(page) - 1) * Number(limit);
@@ -142,9 +186,9 @@ export const getChatMessages = catchAsync(async (req, res) => {
   }
 
   const skip = (Number(page) - 1) * Number(limit);
-  const total = await Message.countDocuments({ chat: chatId });
+  const total = await Message.countDocuments({ chat: chatId, isDeleted: { $ne: true } });
   
-  const messages = await Message.find({ chat: chatId })
+  const messages = await Message.find({ chat: chatId, isDeleted: { $ne: true } })
     .sort({ timestamp: 1 })
     .skip(skip)
     .limit(Number(limit))
@@ -227,11 +271,16 @@ export const sendCrmReply = catchAsync(async (req, res) => {
   customer.lastActiveAt = new Date();
   await customer.save();
 
+  // Auto-transition chat status to Waiting Customer
+  chat.status = "Waiting Customer";
+  await chat.save();
+
   // Re-fetch populated message details to send
   const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
 
-  // Broadcast back to connected admins
-  emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive);
+  // Broadcast back to connected admins and the specific conversation room
+  emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
+  emitToAdmins("chat_status_changed", { chatId: chat._id, status: "Waiting Customer" }, customer.assignedExecutive, chat._id);
 
   res.status(201).json({ success: true, data: populatedMsg });
 });
@@ -241,7 +290,7 @@ export const sendCrmReply = catchAsync(async (req, res) => {
  * Edit Customer lead status or assigned executive
  */
 export const updateCustomer = catchAsync(async (req, res) => {
-  const { name, email, leadStatus, assignedExecutive, pinned } = req.body;
+  const { name, email, leadStatus, assignedExecutive, pinned, priority, budget, city, state, dealValue, nextFollowUpDate } = req.body;
   const customerId = req.params.id;
 
   const customer = await Customer.findById(customerId);
@@ -249,7 +298,7 @@ export const updateCustomer = catchAsync(async (req, res) => {
     return res.status(404).json({ success: false, message: "Customer profile not found" });
   }
 
-  // Prevent executives from editing assignments or overriding status arbitrarily
+  // Role validation: executive can only edit their assigned profiles
   if (req.admin.role === "executive" && customer.assignedExecutive?.toString() !== req.admin._id.toString()) {
     return res.status(403).json({ success: false, message: "Forbidden: Profile not assigned to you" });
   }
@@ -258,10 +307,19 @@ export const updateCustomer = catchAsync(async (req, res) => {
   if (email !== undefined) customer.email = email;
   if (leadStatus !== undefined) customer.leadStatus = leadStatus;
   if (pinned !== undefined) customer.pinned = pinned;
+  if (priority !== undefined) customer.priority = priority;
+  if (budget !== undefined) customer.budget = budget;
+  if (city !== undefined) customer.city = city;
+  if (state !== undefined) customer.state = state;
+  if (dealValue !== undefined) customer.dealValue = dealValue;
+  if (nextFollowUpDate !== undefined) customer.nextFollowUpDate = nextFollowUpDate;
 
   if (assignedExecutive !== undefined) {
     if (req.admin.role === "executive") {
       return res.status(403).json({ success: false, message: "Executives cannot reassign profiles" });
+    }
+    if (req.admin.role !== "superadmin" && req.admin.role !== "manager") {
+      return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to assign leads" });
     }
     customer.assignedExecutive = assignedExecutive === "" ? null : assignedExecutive;
   }
@@ -293,6 +351,11 @@ export const addCustomerNote = catchAsync(async (req, res) => {
     return res.status(404).json({ success: false, message: "Customer not found" });
   }
 
+  // Permission check for executives
+  if (req.admin.role === "executive" && customer.assignedExecutive?.toString() !== req.admin._id.toString()) {
+    return res.status(403).json({ success: false, message: "Forbidden: Profile not assigned to you" });
+  }
+
   customer.internalNotes.push({
     text,
     createdBy: req.admin._id,
@@ -304,7 +367,6 @@ export const addCustomerNote = catchAsync(async (req, res) => {
   const updatedCustomer = await Customer.findById(customer._id)
     .populate("internalNotes.createdBy", "name email");
 
-  // Get newly added note
   const newNote = updatedCustomer.internalNotes[updatedCustomer.internalNotes.length - 1];
 
   res.status(201).json({ success: true, data: newNote });
@@ -325,6 +387,11 @@ export const updateCustomerTags = catchAsync(async (req, res) => {
     return res.status(404).json({ success: false, message: "Customer not found" });
   }
 
+  // Permission check for executives
+  if (req.admin.role === "executive" && customer.assignedExecutive?.toString() !== req.admin._id.toString()) {
+    return res.status(403).json({ success: false, message: "Forbidden: Profile not assigned to you" });
+  }
+
   customer.tags = tags.map(t => t.trim()).filter(Boolean);
   await customer.save();
 
@@ -337,13 +404,18 @@ export const updateCustomerTags = catchAsync(async (req, res) => {
  */
 export const updateChatStatus = catchAsync(async (req, res) => {
   const { status } = req.body;
-  if (!["Open", "Closed", "Pending", "Archived"].includes(status)) {
+  if (!["Open", "Assigned", "Waiting Customer", "Closed", "Spam", "Blocked", "Resolved"].includes(status)) {
     return res.status(400).json({ success: false, message: "Invalid chat status" });
   }
 
   const chat = await Chat.findById(req.params.id).populate("customer");
   if (!chat) {
     return res.status(404).json({ success: false, message: "Conversation not found" });
+  }
+
+  // Permission check for executives
+  if (req.admin.role === "executive" && chat.customer?.assignedExecutive?.toString() !== req.admin._id.toString()) {
+    return res.status(403).json({ success: false, message: "Forbidden: Conversation not assigned to you" });
   }
 
   chat.status = status;
@@ -354,7 +426,7 @@ export const updateChatStatus = catchAsync(async (req, res) => {
   }
   await chat.save();
 
-  emitToAdmins("chat_status_changed", { chatId: chat._id, status }, chat.customer.assignedExecutive);
+  emitToAdmins("chat_status_changed", { chatId: chat._id, status }, chat.customer.assignedExecutive, chat._id);
 
   res.status(200).json({ success: true, data: chat });
 });
@@ -369,8 +441,8 @@ export const deleteChatThread = catchAsync(async (req, res) => {
     return res.status(404).json({ success: false, message: "Conversation not found" });
   }
 
-  if (req.admin.role === "executive") {
-    return res.status(403).json({ success: false, message: "Executives do not have permission to delete threads" });
+  if (req.admin.role !== "superadmin") {
+    return res.status(403).json({ success: false, message: "Forbidden: Only Super Admins do have permission to delete threads" });
   }
 
   // Delete all messages logs
@@ -387,9 +459,34 @@ export const deleteChatThread = catchAsync(async (req, res) => {
     });
   }
 
-  emitToAdmins("chat_deleted", { chatId: chat._id }, chat.customer?.assignedExecutive);
+  emitToAdmins("chat_deleted", { chatId: chat._id }, chat.customer?.assignedExecutive, chat._id);
 
   res.status(200).json({ success: true, message: "Conversation history purged successfully" });
+});
+
+/**
+ * DELETE /api/admin/crm/conversations/:id/messages/:messageId
+ * Soft-delete an individual message
+ */
+export const deleteMessage = catchAsync(async (req, res) => {
+  const { id: chatId, messageId } = req.params;
+
+  if (req.admin.role !== "superadmin") {
+    return res.status(403).json({ success: false, message: "Forbidden: Only Super Admins can delete messages" });
+  }
+
+  const msg = await Message.findOne({ _id: messageId, chat: chatId });
+  if (!msg) {
+    return res.status(404).json({ success: false, message: "Message not found" });
+  }
+
+  msg.isDeleted = true;
+  await msg.save();
+
+  // Broadcast deletion update
+  emitToAdmins("message_deleted", { chatId, messageId }, null, chatId);
+
+  res.status(200).json({ success: true, message: "Message soft-deleted successfully" });
 });
 
 /**
@@ -398,14 +495,81 @@ export const deleteChatThread = catchAsync(async (req, res) => {
  */
 export const exportChatHistory = catchAsync(async (req, res) => {
   const { format = "json" } = req.query;
+
+  // Permissions check
+  if (req.admin.role !== "superadmin" && req.admin.role !== "manager") {
+    return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to export chat history" });
+  }
+
   const chat = await Chat.findById(req.params.id).populate("customer");
   if (!chat) {
     return res.status(404).json({ success: false, message: "Conversation not found" });
   }
 
-  const messages = await Message.find({ chat: chat._id })
+  const messages = await Message.find({ chat: chat._id, isDeleted: { $ne: true } })
     .sort({ timestamp: 1 })
     .populate("sentBy", "name");
+
+  if (format === "html") {
+    const messageListHtml = messages.map(m => {
+      const isOutgoing = m.direction === "outgoing";
+      const sender = isOutgoing ? (m.sentBy?.name || "Automated Bot") : chat.customer.name;
+      const content = typeof m.body === "object" ? JSON.stringify(m.body) : m.body;
+      const dateStr = m.timestamp.toLocaleString();
+      return `
+        <div class="msg ${isOutgoing ? 'outgoing' : 'incoming'}">
+          <div class="sender">${sender} (${m.direction})</div>
+          <div>${content}</div>
+          <div class="time">${dateStr}</div>
+        </div>
+      `;
+    }).join("\n");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Chat Transcript - ${chat.customer.name}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 20px; line-height: 1.5; color: #333; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eaeaea; padding-bottom: 10px; margin-bottom: 20px; }
+          .meta { margin-bottom: 30px; font-size: 14px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef; }
+          .msg { margin-bottom: 15px; padding: 12px 15px; border-radius: 6px; border: 1px solid #e9ecef; max-width: 80%; }
+          .incoming { background: #e3f2fd; border-color: #bbdefb; margin-right: auto; }
+          .outgoing { background: #f1f8e9; border-color: #dcedc8; margin-left: auto; }
+          .sender { font-weight: bold; font-size: 13px; margin-bottom: 5px; color: #555; }
+          .time { font-size: 11px; color: #888; margin-top: 5px; text-align: right; }
+          button { padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+          button:hover { background: #0056b3; }
+          @media print {
+            body { padding: 0; }
+            button { display: none; }
+            .msg { max-width: 100%; page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>WhatsApp Conversation Transcript</h2>
+          <button onclick="window.print()">Print PDF</button>
+        </div>
+        <div class="meta">
+          <strong>Customer Name:</strong> ${chat.customer.name}<br>
+          <strong>Phone Number:</strong> ${chat.customer.phone}<br>
+          <strong>Status:</strong> ${chat.status}<br>
+          <strong>Exported On:</strong> ${new Date().toLocaleString()}
+        </div>
+        <div class="chat-container">
+          ${messageListHtml}
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.header("Content-Type", "text/html");
+    return res.send(htmlContent);
+  }
 
   if (format === "csv") {
     const csvHeaders = ["Timestamp", "Direction", "Sender", "Type", "Content"];
@@ -445,16 +609,32 @@ export const exportChatHistory = catchAsync(async (req, res) => {
  * CRM Performance metric calculators (Response times, volume statistics)
  */
 export const getCrmAnalytics = catchAsync(async (req, res) => {
+  // Permissions check: only superadmin and manager can view analytics
+  if (req.admin.role !== "superadmin" && req.admin.role !== "manager") {
+    return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to view CRM analytics" });
+  }
+
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
+
+  const yesterdayStart = new Date();
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  yesterdayStart.setHours(0, 0, 0, 0);
+  const yesterdayEnd = new Date(todayStart);
 
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
+  const monthStart = new Date();
+  monthStart.setDate(monthStart.getDate() - 30);
+  monthStart.setHours(0, 0, 0, 0);
+
   // 1. Message Volume counts
   const todayMessages = await Message.countDocuments({ createdAt: { $gte: todayStart } });
+  const yesterdayMessages = await Message.countDocuments({ createdAt: { $gte: yesterdayStart, $lt: yesterdayEnd } });
   const weekMessages = await Message.countDocuments({ createdAt: { $gte: weekStart } });
+  const monthMessages = await Message.countDocuments({ createdAt: { $gte: monthStart } });
   
   // 2. Conversation statuses totals
   const totalConversations = await Chat.countDocuments();
@@ -466,10 +646,8 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
   const unreadChats = await Customer.countDocuments({ unreadCount: { $gt: 0 } });
 
   // 3. Response time calculation
-  // Fetch messages from this week to calculate average first response time
   const messagesThisWeek = await Message.find({ createdAt: { $gte: weekStart } }).sort({ timestamp: 1 });
   
-  // Group by chat
   const chatMessagesMap = {};
   messagesThisWeek.forEach(m => {
     if (!chatMessagesMap[m.chat]) chatMessagesMap[m.chat] = [];
@@ -481,11 +659,9 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
 
   Object.keys(chatMessagesMap).forEach(chatId => {
     const list = chatMessagesMap[chatId];
-    // Find pairs of incoming messages followed by outgoing message responses
     for (let i = 0; i < list.length - 1; i++) {
       if (list[i].direction === "incoming" && list[i + 1].direction === "outgoing") {
         const diff = new Date(list[i + 1].timestamp) - new Date(list[i].timestamp);
-        // Only count sensible replies (e.g. less than 24 hours response time to avoid skewed numbers)
         if (diff > 0 && diff < 24 * 60 * 60 * 1000) {
           totalResponseDiffMs += diff;
           responseCount++;
@@ -496,14 +672,65 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
 
   const avgResponseTimeMins = responseCount > 0 ? Math.round((totalResponseDiffMs / responseCount) / (1000 * 60)) : 0;
 
-  // 4. Fetch executives lists to return
-  const executives = await Admin.find({ role: { $in: ["superadmin", "editor", "executive", "manager"] } }).select("name email role");
+  // 4. Project-wise Leads
+  const projectLeads = await Customer.aggregate([
+    { $match: { interestedProject: { $ne: null } } },
+    { $group: { _id: "$interestedProject", count: { $sum: 1 } } }
+  ]);
+  const projectLeadsPopulated = await Project.populate(projectLeads, { path: "_id", select: "title" });
+  const formattedProjectLeads = projectLeadsPopulated.map(p => ({
+    projectName: p._id?.title || "Unknown",
+    count: p.count
+  }));
+
+  // 5. Conversion Rate
+  const totalLeads = await Customer.countDocuments();
+  const wonLeads = await Customer.countDocuments({ leadStatus: "Won" });
+  const conversionRate = totalLeads > 0 ? parseFloat(((wonLeads / totalLeads) * 100).toFixed(2)) : 0;
+
+  // 6. Appointments, Callbacks, Brochure downloads
+  const appointmentsCount = await Appointment.countDocuments();
+  const callbacksCount = await CallbackRequest.countDocuments();
+  const brochureDownloadsCount = await BrochureDownload.countDocuments();
+
+  // 7. Revenue total from dealValue
+  const revenueObj = await Customer.aggregate([
+    { $match: { leadStatus: "Won", dealValue: { $ne: null } } },
+    { $group: { _id: null, totalRevenue: { $sum: "$dealValue" } } }
+  ]);
+  const totalRevenue = revenueObj[0]?.totalRevenue || 0;
+
+  // 8. Top Sales Executives Performance
+  const executivePerformance = await Customer.aggregate([
+    { $match: { assignedExecutive: { $ne: null } } },
+    { $group: {
+        _id: "$assignedExecutive",
+        totalLeads: { $sum: 1 },
+        wonLeads: {
+          $sum: { $cond: [{ $eq: ["$leadStatus", "Won"] }, 1, 0] }
+        }
+      }
+    },
+    { $sort: { wonLeads: -1 } }
+  ]);
+  const executivePerformancePopulated = await Admin.populate(executivePerformance, { path: "_id", select: "name email" });
+  const topExecutives = executivePerformancePopulated.map(exec => ({
+    name: exec._id?.name || "Unassigned",
+    totalLeads: exec.totalLeads,
+    wonLeads: exec.wonLeads,
+    conversionRate: exec.totalLeads > 0 ? parseFloat(((exec.wonLeads / exec.totalLeads) * 100).toFixed(2)) : 0
+  }));
+
+  // 9. Fetch all executives lists
+  const executives = await Admin.find({ role: { $in: ["superadmin", "editor", "executive", "manager", "support"] } }).select("name email role");
 
   res.status(200).json({
     success: true,
     data: {
       todayMessages,
+      yesterdayMessages,
       weekMessages,
+      monthMessages,
       totalConversations,
       openConversations,
       pendingConversations,
@@ -511,6 +738,13 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
       totalCustomers,
       unreadChats,
       avgResponseTimeMins,
+      projectLeads: formattedProjectLeads,
+      conversionRate,
+      appointmentsCount,
+      callbacksCount,
+      brochureDownloadsCount,
+      totalRevenue,
+      topExecutives,
       executives
     }
   });
