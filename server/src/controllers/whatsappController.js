@@ -8,21 +8,20 @@ import whatsappService from "../services/whatsappService.js";
  */
 export const verifyWebhook = async (req, res) => {
   try {
-    // Temporary console logs for debugging query parameter parsing issues
     console.log("[WhatsApp Webhook GET] req.originalUrl:", req.originalUrl);
-    console.log("[WhatsApp Webhook GET] req.query:", JSON.stringify(req.query));
 
-    // Support both flat keys ("hub.mode") and nested objects parsed from dots (hub: { mode: ... })
-    const mode = req.query["hub.mode"] || req.query.hub?.mode;
-    const token = req.query["hub.verify_token"] || req.query.hub?.verify_token;
-    const challenge = req.query["hub.challenge"] || req.query.hub?.challenge;
+    // Parse parameters directly from req.originalUrl to bypass express-mongo-sanitize stripping keys with dots
+    const urlObj = new URL(req.originalUrl, "http://localhost");
+    const mode = urlObj.searchParams.get("hub.mode");
+    const token = urlObj.searchParams.get("hub.verify_token");
+    const challenge = urlObj.searchParams.get("hub.challenge");
 
     console.log(`[WhatsApp Webhook GET] Parsed values -> mode: ${mode}, token: ${token}, challenge: ${challenge}`);
 
     // Check if parameters are missing
     if (!mode || !token || !challenge) {
       console.warn("[WhatsApp Controller] Webhook verification failed. Missing parameters.");
-      return res.status(400).send(`Missing parameters. Received: ${JSON.stringify({ query: req.query, originalUrl: req.originalUrl })}`);
+      return res.status(400).send("Missing parameters");
     }
 
     // Compare token with process.env.VERIFY_TOKEN
