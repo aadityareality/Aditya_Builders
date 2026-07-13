@@ -187,28 +187,7 @@ export default function Contact() {
     return "";
   };
 
-  const handleWhatsAppEnquiry = (e) => {
-    e.preventDefault();
-    const projectTitle = getSelectedProjectTitle();
 
-    const details = [
-      `*Name:* ${name.trim() || "N/A"}`,
-      `*Email:* ${email.trim() || "N/A"}`,
-      `*Phone:* ${phone.trim() || "N/A"}`,
-      subject.trim() ? `*Subject:* ${subject.trim()}` : null,
-      projectTitle ? `*Project:* ${projectTitle}` : null,
-      message.trim() ? `*Message:* ${message.trim()}` : null,
-    ].filter(Boolean).join("\n");
-
-    const text = `Hi, I would like to submit an enquiry:\n\n${details}`;
-    const number = settings?.whatsappNumber?.replace(/[^0-9]/g, "") || "919974858500";
-    const waUrl = `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
-
-    trackAnalyticsEvent("whatsapp_button_clicked", "click", "contact_form_footer");
-    trackPixelEvent("Contact", { content_name: "whatsapp_footer", value: 1 });
-
-    window.open(waUrl, "_blank", "noopener,noreferrer");
-  };
 
   return (
     <>
@@ -508,11 +487,11 @@ export default function Contact() {
 
                 {settings?.whatsappNumber && (
                   <button
-                    type="button"
-                    onClick={handleWhatsAppEnquiry}
+                    type="submit"
+                    disabled={submitting}
                     className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white font-bold py-4 px-6 rounded-2xl transition-all text-xs text-center shadow-md shadow-green-500/10 active:scale-[0.98] select-none flex items-center justify-center gap-2 hover:scale-[1.01]"
                   >
-                    <FaWhatsapp className="w-4 h-4" /> Enquire on WhatsApp
+                    <FaWhatsapp className="w-4 h-4" /> {submitting ? "Sending..." : "Enquire on WhatsApp"}
                   </button>
                 )}
               </div>
