@@ -25,6 +25,10 @@ import adminTeamRoutes from "./routes/adminTeamRoutes.js";
 import adminSettingsRoutes from "./routes/adminSettingsRoutes.js";
 import adminUserRoutes from "./routes/adminUserRoutes.js";
 import adminUploadRoutes from "./routes/adminUploadRoutes.js";
+import adminAppointmentRoutes from "./routes/adminAppointmentRoutes.js";
+import adminCrmRoutes from "./routes/adminCrmRoutes.js";
+import http from "http";
+import { initSocket } from "./src/services/socketService.js";
 
 // ─── Public API Route Imports ──────────────────────────────────────────────────
 import publicProjectRoutes from "./routes/publicProjectRoutes.js";
@@ -36,6 +40,7 @@ import publicContactRoutes from "./routes/publicContactRoutes.js";
 import publicCallbackRoutes from "./routes/publicCallbackRoutes.js";
 import adminCallbackRoutes from "./routes/adminCallbackRoutes.js";
 import whatsappRoutes from "./src/routes/whatsappRoutes.js";
+import { initReminderCron } from "./src/services/reminderService.js";
 
 // ─── Error Middleware (must be imported BEFORE mounting, used AFTER routes) ────
 import { notFound, globalErrorHandler } from "./middleware/errorMiddleware.js";
@@ -178,6 +183,8 @@ app.use("/api/admin/settings", adminSettingsRoutes);
 app.use("/api/admin/admins", adminUserRoutes);
 app.use("/api/admin/upload", adminUploadRoutes);
 app.use("/api/admin/callback-requests", adminCallbackRoutes);
+app.use("/api/admin/appointments", adminAppointmentRoutes);
+app.use("/api/admin/crm", adminCrmRoutes);
 
 // ── Public APIs ───────────────────────────────────────────────────────────────
 app.use("/api/projects", publicProjectRoutes);
@@ -213,12 +220,18 @@ app.use(notFound);
 app.use(globalErrorHandler);
 
 // ─── Start Server ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = http.createServer(app);
+initSocket(server);
+
+server.listen(PORT, () => {
   console.log(
     `🚀 Aditya Builders API running on port ${PORT} [${process.env.NODE_ENV || "development"}]`
   );
   console.log(`   Admin API base: /api/admin/*`);
   console.log(`   Health check:   /api/health`);
+  
+  // Initialize cron reminders daemon
+  initReminderCron();
 });
 
 export default app;

@@ -184,6 +184,15 @@ const projectSchema = new Schema(
       type: Number,
       default: 0,
     },
+    brochure: {
+      url: { type: String, default: null },
+      publicId: { type: String, default: null },
+      uploadedAt: { type: Date, default: null },
+    },
+    downloadCount: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

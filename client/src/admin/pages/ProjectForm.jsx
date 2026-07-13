@@ -20,6 +20,7 @@ export default function ProjectForm() {
   const [saving, setSaving] = useState(false);
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [coverImageFile, setCoverImageFile] = useState(null);
+  const [brochureFile, setBrochureFile] = useState(null);
 
   // Form Fields State
   const [formData, setFormData] = useState({
@@ -39,6 +40,7 @@ export default function ProjectForm() {
     coverImage: { url: "", publicId: "" },
     gallery: [],
     saleableArea: { minSqFt: "", maxSqFt: "" },
+    brochure: { url: "", publicId: "", uploadedAt: "" },
   });
 
   // Dynamic Lists States
@@ -72,6 +74,7 @@ export default function ProjectForm() {
             minSqFt: p.saleableArea?.minSqFt ?? "",
             maxSqFt: p.saleableArea?.maxSqFt ?? "",
           },
+          brochure: p.brochure || { url: "", publicId: "", uploadedAt: "" },
         });
         setContactNumbers(p.contactNumbers?.length > 0 ? p.contactNumbers : [""]);
         setAmenities(p.amenities || []);
@@ -203,6 +206,13 @@ export default function ProjectForm() {
       fd.append("coverImage", coverImageFile);
     } else {
       fd.append("coverImage", JSON.stringify(formData.coverImage));
+    }
+
+    // Brochure file (new upload or existing brochure metadata)
+    if (brochureFile) {
+      fd.append("brochure", brochureFile);
+    } else {
+      fd.append("brochure", JSON.stringify(formData.brochure));
     }
 
     // Split gallery files out into uploads and remaining metadata list
@@ -444,6 +454,44 @@ export default function ProjectForm() {
               galleryValues={formData.gallery}
               onGalleryChange={(updatedGallery) => setFormData({ ...formData, gallery: updatedGallery })}
             />
+          </div>
+
+          {/* Brochure PDF File Card */}
+          <div className="bg-white border border-amber-100 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+            <h3 className="text-sm font-bold text-[#2E2A26] border-b border-amber-50 pb-2">
+              Project Brochure (PDF)
+            </h3>
+            <p className="text-[10px] text-[#6B625A]">
+              Upload a PDF document. If a brochure is already uploaded, a link will be shown below.
+            </p>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setBrochureFile(e.target.files[0]);
+                }
+              }}
+              className="w-full text-xs text-[#6B625A] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-50 file:text-[#E8871E] hover:file:bg-amber-100/50 cursor-pointer"
+            />
+            {brochureFile && (
+              <p className="text-xs text-[#E8871E] font-semibold">
+                Selected new file: {brochureFile.name}
+              </p>
+            )}
+            {!brochureFile && formData.brochure?.url && (
+              <div className="text-xs text-[#6B625A] flex items-center gap-2">
+                <span>Current Brochure:</span>
+                <a
+                  href={formData.brochure.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#E8871E] font-bold hover:underline"
+                >
+                  Download / View PDF
+                </a>
+              </div>
+            )}
           </div>
         </div>
 

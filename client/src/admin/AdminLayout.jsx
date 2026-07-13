@@ -12,7 +12,10 @@ import {
   FiKey,
   FiLogOut,
   FiExternalLink,
+  FiCalendar,
+  FiBarChart2,
 } from "react-icons/fi";
+import { FaWhatsapp } from "react-icons/fa";
 import logoImg from "../assets/logo.jpg";
 
 const ADMIN_SLUG = import.meta.env.VITE_ADMIN_SLUG || "/secure-panel-x9k2";
@@ -61,6 +64,21 @@ export default function AdminLayout() {
       path: `${ADMIN_SLUG}/leads`,
       icon: <FiMail className="w-4 h-4" />,
       badge: newLeadsCount > 0 ? newLeadsCount : null,
+    },
+    {
+      name: "Appointments",
+      path: `${ADMIN_SLUG}/appointments`,
+      icon: <FiCalendar className="w-4 h-4" />,
+    },
+    {
+      name: "WhatsApp CRM",
+      path: `${ADMIN_SLUG}/whatsapp-crm`,
+      icon: <FaWhatsapp className="w-4 h-4" />,
+    },
+    {
+      name: "Chat Analytics",
+      path: `${ADMIN_SLUG}/chat-analytics`,
+      icon: <FiBarChart2 className="w-4 h-4" />,
     },
     {
       name: "Projects Catalog",
@@ -198,11 +216,17 @@ export default function AdminLayout() {
         </header>
 
         {/* Main Content Grid Scroll wrapper */}
-        <main className="flex-grow p-8 overflow-y-auto max-h-[calc(100vh-4rem)]">
-          <div className="max-w-6xl mx-auto">
+        {location.pathname.includes("/whatsapp-crm") ? (
+          <main className="flex-grow overflow-hidden p-2 max-h-[calc(100vh-4rem)]">
             <Outlet />
-          </div>
-        </main>
+          </main>
+        ) : (
+          <main className="flex-grow p-8 overflow-y-auto max-h-[calc(100vh-4rem)]">
+            <div className="max-w-6xl mx-auto">
+              <Outlet />
+            </div>
+          </main>
+        )}
       </div>
     </div>
   );

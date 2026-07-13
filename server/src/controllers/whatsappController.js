@@ -1,7 +1,228 @@
 import WebhookLog from "../../models/WebhookLog.js";
 import ContactInquiry from "../../models/ContactInquiry.js";
+import Appointment from "../../models/Appointment.js";
+import BrochureDownload from "../../models/BrochureDownload.js";
+import ConversationState from "../../models/ConversationState.js";
+import Project from "../../models/Project.js";
+import SiteSettings from "../../models/SiteSettings.js";
+import ReminderLog from "../../models/ReminderLog.js";
 import whatsappConfig from "../config/whatsappConfig.js";
 import whatsappService from "../services/whatsappService.js";
+import Customer from "../../models/Customer.js";
+import Chat from "../../models/Chat.js";
+import Message from "../../models/Message.js";
+import MessageStatus from "../../models/MessageStatus.js";
+import { emitToAdmins } from "../services/socketService.js";
+import axios from "axios";
+import { v2 as cloudinary } from "cloudinary";
+
+/**
+ * Downloads a media file from Meta's temporary URL and re-uploads to Cloudinary.
+ * Meta media URLs expire — this persists them permanently.
+ */
+const persistMetaMedia = async (mediaId, mimeType) => {
+  try {
+    if (!whatsappConfig.accessToken) return null;
+
+    // Step 1: Get the media URL from Meta
+    const mediaInfoRes = await axios.get(
+      `https://graph.facebook.com/v23.0/${mediaId}`,
+      { headers: { Authorization: `Bearer ${whatsappConfig.accessToken}` } }
+    );
+    const mediaUrl = mediaInfoRes.data?.url;
+    if (!mediaUrl) return null;
+
+    // Step 2: Download the actual binary
+    const mediaRes = await axios.get(mediaUrl, {
+      headers: { Authorization: `Bearer ${whatsappConfig.accessToken}` },
+      responseType: "arraybuffer"
+    });
+
+    // Step 3: Upload to Cloudinary as base64
+    const base64 = Buffer.from(mediaRes.data).toString("base64");
+    const dataUri = `data:${mimeType};base64,${base64}`;
+    const resourceType = mimeType.startsWith("image") ? "image" : mimeType.startsWith("video") ? "video" : "raw";
+
+    const uploadResult = await cloudinary.uploader.upload(dataUri, {
+      folder: "whatsapp_media",
+      resource_type: resourceType,
+    });
+
+    return uploadResult.secure_url;
+  } catch (err) {
+    console.error("⚠️ [CRM] Media persist to Cloudinary failed:", err.message);
+    return null;
+  }
+};
+
+/**
+ * Upserts a Customer + Chat document, then logs an incoming Message to CRM.
+ * Emits Socket.IO event to connected admins.
+ */
+const logIncomingToCRM = async (messageObj, customerName, from, cloudinaryUrl = null) => {
+  try {
+    // Deduplicate by Meta message ID
+    const metaMessageId = messageObj.id;
+    const existing = await Message.findOne({ metaMessageId });
+    if (existing) return; // Already logged — skip duplicate
+
+    // 1. Upsert Customer
+    let customer = await Customer.findOneAndUpdate(
+      { phone: from },
+      {
+        $set: { name: customerName, lastActiveAt: new Date() },
+        $setOnInsert: { leadStatus: "Warm" }
+      },
+      { upsert: true, new: true }
+    );
+
+    // 2. Upsert Chat thread
+    let chat = await Chat.findOneAndUpdate(
+      { customer: customer._id },
+      { $set: { status: "Open" } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // 3. Build message body
+    let msgBody;
+    let msgType = messageObj.type;
+
+    if (msgType === "text") {
+      msgBody = messageObj.text?.body || "";
+    } else if (["image", "video", "audio", "document", "sticker"].includes(msgType)) {
+      const mediaData = messageObj[msgType];
+      msgBody = {
+        mediaId: mediaData?.id,
+        mimeType: mediaData?.mime_type,
+        fileName: mediaData?.filename,
+        sha256: mediaData?.sha256,
+        caption: mediaData?.caption || "",
+        cloudinaryUrl: cloudinaryUrl || null,
+        mediaError: cloudinaryUrl === null ? "Media upload to Cloudinary failed or not attempted" : null
+      };
+    } else if (msgType === "location") {
+      msgBody = {
+        latitude: messageObj.location?.latitude,
+        longitude: messageObj.location?.longitude,
+        name: messageObj.location?.name,
+        address: messageObj.location?.address
+      };
+    } else if (msgType === "contacts") {
+      msgBody = messageObj.contacts;
+      msgType = "contact";
+    } else if (msgType === "interactive") {
+      msgBody = messageObj.interactive;
+    } else {
+      msgBody = { raw: messageObj };
+    }
+
+    // 4. Save Message document
+    const msgDoc = await Message.create({
+      chat: chat._id,
+      direction: "incoming",
+      messageType: msgType,
+      body: msgBody,
+      metaMessageId,
+      deliveryStatus: "delivered",
+      timestamp: new Date(parseInt(messageObj.timestamp) * 1000 || Date.now()),
+      sentBy: null
+    });
+
+    // 5. Update Customer preview fields
+    const preview = msgType === "text" ? msgBody : `[${msgType}]`;
+    await Customer.findByIdAndUpdate(customer._id, {
+      lastMessage: String(preview).substring(0, 120),
+      lastMessageAt: new Date(),
+      lastActiveAt: new Date(),
+      $inc: { unreadCount: 1 }
+    });
+
+    // 6. Populate and emit via Socket.IO to all admins
+    const populated = await Message.findById(msgDoc._id).populate("sentBy", "name");
+    emitToAdmins("message_new", {
+      chatId: chat._id,
+      customerId: customer._id,
+      message: populated,
+      customer: await Customer.findById(customer._id)
+        .populate("interestedProject", "title")
+        .populate("assignedExecutive", "name email")
+    }, customer.assignedExecutive);
+
+  } catch (err) {
+    console.error("❌ [CRM] logIncomingToCRM Error:", err.message);
+  }
+};
+
+// Helper to parse date strings in format DD/MM/YYYY
+const parseDateStr = (str) => {
+  const match = str.trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (!match) return null;
+  const day = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10) - 1; // 0-indexed
+  const year = parseInt(match[3], 10);
+  const parsed = new Date(year, month, day);
+  if (isNaN(parsed.getTime())) return null;
+  return parsed;
+};
+
+/**
+ * Sends the main welcome menu message (falling back to text if buttons fail)
+ */
+const sendWelcomeMenu = async (to) => {
+  const text = 
+    `🏡 *Welcome to Aaditya Builders*\n\n` +
+    `How may we help you today?\n\n` +
+    `Reply with the option number:\n` +
+    `1️⃣ New Projects\n` +
+    `2️⃣ Ready Possession\n` +
+    `3️⃣ Book Site Visit\n` +
+    `4️⃣ Download Brochure\n` +
+    `5️⃣ Contact Sales\n` +
+    `6️⃣ Office Location\n` +
+    `7️⃣ Contact Number`;
+
+  const buttons = [
+    { id: "menu_projects", title: "New Projects" },
+    { id: "menu_visit", title: "Book Site Visit" },
+    { id: "menu_location", title: "Office Location" }
+  ];
+
+  try {
+    await whatsappService.sendInteractiveButtons(to, text, buttons);
+  } catch (err) {
+    await whatsappService.sendTextMessage(to, text);
+  }
+};
+
+/**
+ * Sends office location pin card followed by text details card
+ */
+const sendOfficeLocation = async (to) => {
+  try {
+    const settings = await SiteSettings.getSettings();
+    const lat = settings.mapLatitude || 21.7484;
+    const lng = settings.mapLongitude || 72.1328;
+    const name = settings.companyName || "Aditya Builders";
+    const address = settings.address || "Shivomnagar, RTO Road, Bhavnagar";
+
+    // Step A: Send location pin message
+    await whatsappService.sendLocation(to, lat, lng, name, address);
+
+    // Step B: Send follow-up detailed message card
+    const googleMapsLink = `https://www.google.com/maps?q=${lat},${lng}`;
+    const followUpText = 
+      `📍 *${name}*\n` +
+      `${address}\n\n` +
+      `Google Maps: ${googleMapsLink}\n\n` +
+      `🕒 *Office Hours:* ${settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM"}\n` +
+      `📞 *Phone:* ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
+      `📧 *Email:* ${settings.email || "aadityareality1@gmail.com"}`;
+
+    await whatsappService.sendTextMessage(to, followUpText);
+  } catch (err) {
+    console.error("❌ Failed to send office location details:", err.message);
+  }
+};
 
 /**
  * GET /api/webhook
@@ -11,7 +232,6 @@ export const verifyWebhook = async (req, res) => {
   try {
     console.log("[WhatsApp Webhook GET] req.originalUrl:", req.originalUrl);
 
-    // Parse parameters directly from req.originalUrl to bypass express-mongo-sanitize stripping keys with dots
     const urlObj = new URL(req.originalUrl, "http://localhost");
     const mode = urlObj.searchParams.get("hub.mode");
     const token = urlObj.searchParams.get("hub.verify_token");
@@ -19,13 +239,11 @@ export const verifyWebhook = async (req, res) => {
 
     console.log(`[WhatsApp Webhook GET] Parsed values -> mode: ${mode}, token: ${token}, challenge: ${challenge}`);
 
-    // Check if parameters are missing
     if (!mode || !token || !challenge) {
       console.warn("[WhatsApp Controller] Webhook verification failed. Missing parameters.");
       return res.status(400).send("Missing parameters");
     }
 
-    // Compare token with process.env.VERIFY_TOKEN
     const expectedToken = process.env.VERIFY_TOKEN || "aaditya-builders-webhook";
 
     if (mode === "subscribe" && token === expectedToken) {
@@ -72,90 +290,195 @@ export const receiveWebhook = async (req, res) => {
       processed: false,
     });
 
-    // Check if it's a message event
     if (eventType === "message") {
       const message = value.messages[0];
       const contact = value.contacts?.[0];
       const from = message.from; // Customer phone
       const customerName = contact?.profile?.name || "Customer";
 
-      if (message.type === "text") {
-        const textBody = message.text?.body?.trim();
-        const lowerText = textBody.toLowerCase();
-
-        console.log(`[WhatsApp Controller] Incoming text message from ${from} (${customerName}): "${textBody}"`);
-
-        // Chatbot Auto-Response Matrix
-        if (lowerText === "hi" || lowerText === "hello" || lowerText === "hey") {
-          await whatsappService.sendTextMessage(
-            from, 
-            "Welcome to Aaditya Group of Companies.\n\nHow may we help you?"
-          );
-        } else if (lowerText === "price") {
-          await whatsappService.sendTextMessage(
-            from, 
-            "Our sales team will contact you shortly with pricing."
-          );
-        } else if (lowerText === "projects") {
-          await whatsappService.sendTextMessage(
-            from, 
-            "Please visit\n\nhttps://adityabuilders.in"
-          );
-        } else if (lowerText === "location") {
-          await whatsappService.sendTextMessage(
-            from, 
-            "Shop No.10\n\nAaditya Elegance\n\nJewell Circle to RTO Road\n\nBhavnagar"
-          );
-        } else if (lowerText === "contact") {
-          await whatsappService.sendTextMessage(
-            from, 
-            "📞 +91 9974858500"
-          );
-        } else {
-          // Default / Fallback: Forward user message to admin
-          console.log(`[WhatsApp Controller] Forwarding query to admin from ${from}`);
-          const adminAlert = 
-            `🚨 *New Customer Message Alert*\n\n` +
-            `👤 *Name:* ${customerName}\n` +
-            `📞 *Phone:* ${from}\n` +
-            `💬 *Message:* ${textBody}\n` +
-            `🕒 *Time:* ${new Date().toLocaleString()}`;
-          
-          await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlert);
+      // ── CRM: Persist incoming message ─────────────────────────────────────
+      let cloudinaryUrl = null;
+      if (["image", "video", "audio", "document", "sticker"].includes(message.type)) {
+        const mediaObj = message[message.type];
+        if (mediaObj?.id) {
+          cloudinaryUrl = await persistMetaMedia(mediaObj.id, mediaObj.mime_type || "application/octet-stream");
         }
-      } else {
-        // Handle media / other message types by alerting admin
-        console.log(`[WhatsApp Controller] Forwarding media/non-text alert to admin from ${from}`);
-        const adminAlert = 
-          `🚨 *New Media Message Alert*\n\n` +
-          `👤 *Name:* ${customerName}\n` +
-          `📞 *Phone:* ${from}\n` +
-          `📁 *Message Type:* ${message.type}\n` +
-          `🕒 *Time:* ${new Date().toLocaleString()}\n\nPlease check Meta Business Manager for details.`;
-        
-        await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlert);
+      }
+      // Log to CRM (non-blocking — errors are caught internally)
+      logIncomingToCRM(message, customerName, from, cloudinaryUrl).catch(e =>
+        console.error("[CRM] Background log error:", e.message)
+      );
+      // ─────────────────────────────────────────────────────────────────────
+
+      let textBody = "";
+      if (message.type === "text") {
+        textBody = message.text?.body?.trim();
+      } else if (message.type === "interactive" && message.interactive?.button_reply) {
+        const buttonId = message.interactive.button_reply.id;
+        if (buttonId === "menu_projects") textBody = "1";
+        if (buttonId === "menu_visit") textBody = "3";
+        if (buttonId === "menu_location") textBody = "6";
+      }
+
+      if (textBody) {
+        console.log(`[WhatsApp Controller] Incoming trigger from ${from} (${customerName}): "${textBody}"`);
+
+        // Check if there is an active conversational flow state
+        let state = await ConversationState.findOne({ phone: from });
+
+        // Global cancellation keywords
+        if (state && state.currentFlow && ["cancel", "exit", "stop", "quit"].includes(textBody.toLowerCase())) {
+          await ConversationState.deleteOne({ phone: from });
+          await whatsappService.sendTextMessage(from, "Operation cancelled. Returning to main menu...");
+          await sendWelcomeMenu(from);
+          if (logDoc) {
+            logDoc.processed = true;
+            await logDoc.save();
+          }
+          return;
+        }
+
+        if (state && state.currentFlow === "site_visit_booking") {
+          await handleSiteVisitBooking(from, textBody, state, customerName);
+        } else if (state && state.currentFlow === "brochure_request") {
+          await handleBrochureRequest(from, textBody, state, customerName);
+        } else if (state && state.currentFlow === "reschedule") {
+          await handleReschedule(from, textBody, state, customerName);
+        } else {
+          // Standard / Stateless Command router
+          const lowerText = textBody.toLowerCase();
+          
+          if (["hi", "hello", "hey", "start", "menu"].includes(lowerText)) {
+            await sendWelcomeMenu(from);
+          } else if (lowerText === "price" || lowerText === "pricing") {
+            await whatsappService.sendTextMessage(from, "Our sales team will contact you shortly with pricing.");
+          } else if (lowerText === "projects") {
+            await whatsappService.sendTextMessage(from, "Please visit\n\nhttps://adityabuilders.in");
+          } else if (["location", "office", "map", "address", "visit office"].includes(lowerText)) {
+            await sendOfficeLocation(from);
+          } else if (lowerText === "contact") {
+            await whatsappService.sendTextMessage(from, "📞 +91 99748 58500");
+          } else if (lowerText === "brochure") {
+            await startBrochureRequestFlow(from);
+          } else if (textBody === "1") {
+            // New / Ongoing Projects
+            const projects = await Project.find({ isActive: true, status: "Ongoing" }).sort({ displayOrder: 1 });
+            if (projects.length === 0) {
+              await whatsappService.sendTextMessage(from, "We don't have any ongoing projects listed right now.");
+            } else {
+              const list = projects.map(p => `🏗 *${p.title}*\n📍 Locality: ${p.location}\n💰 Starting Price: ${p.startingPrice || "N/A"}`).join("\n\n");
+              await whatsappService.sendTextMessage(from, `🏢 *Ongoing Projects Catalog:*\n\n${list}\n\nBook a site visit or view brochures by selecting options from the menu!`);
+            }
+          } else if (textBody === "2") {
+            // Ready Possession / Completed Projects
+            const projects = await Project.find({ isActive: true, status: "Completed" }).sort({ displayOrder: 1 });
+            if (projects.length === 0) {
+              await whatsappService.sendTextMessage(from, "We don't have any completed projects listed right now.");
+            } else {
+              const list = projects.map(p => `🏢 *${p.title}*\n📍 Locality: ${p.location}\n💰 Price: ${p.startingPrice || "N/A"}`).join("\n\n");
+              await whatsappService.sendTextMessage(from, `🏡 *Ready Possession Catalog:*\n\n${list}`);
+            }
+          } else if (textBody === "3") {
+            // Start Visit booking flow
+            await startSiteVisitBookingFlow(from);
+          } else if (textBody === "4") {
+            // Start brochure flow
+            await startBrochureRequestFlow(from);
+          } else if (textBody === "5") {
+            const settings = await SiteSettings.getSettings();
+            await whatsappService.sendTextMessage(
+              from,
+              `📞 *Sales Contact Details:*\n\n` +
+              `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
+              `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
+              `Office Hours: ${settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM"}`
+            );
+          } else if (textBody === "6") {
+            await sendOfficeLocation(from);
+          } else if (textBody === "7") {
+            const settings = await SiteSettings.getSettings();
+            await whatsappService.sendTextMessage(
+              from,
+              `🏢 *Aaditya Builders Support:*\n\n` +
+              `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
+              `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
+              `Website: https://adityabuilders.in`
+            );
+          } else if (lowerText === "yes" || lowerText === "no") {
+            // Check if there was an active rescheduling trigger context
+            const activeApt = await Appointment.findOne({ customerPhone: from, status: { $in: ["Confirmed", "Rescheduled"] } }).sort({ createdAt: -1 });
+            if (activeApt && lowerText === "yes") {
+              await ConversationState.create({
+                phone: from,
+                currentFlow: "reschedule",
+                currentStep: 1,
+                collectedData: {},
+                updatedAt: new Date()
+              });
+              await whatsappService.sendTextMessage(from, "Sure! Let's reschedule. Please provide your preferred **New Date** (Format: DD/MM/YYYY):");
+            } else {
+              await whatsappService.sendTextMessage(from, "Thank you. Your site visit booking remains confirmed.");
+            }
+          } else {
+            // Unrecognized / Fallback: alert admin
+            console.log(`[WhatsApp Controller] Forwarding query to admin from ${from}`);
+            const adminAlert = 
+              `🚨 *New Customer Message Alert*\n\n` +
+              `👤 *Name:* ${customerName}\n` +
+              `📞 *Phone:* ${from}\n` +
+              `💬 *Message:* ${textBody}\n` +
+              `🕒 *Time:* ${new Date().toLocaleString()}`;
+            
+            await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlert);
+            await whatsappService.sendTextMessage(from, "Thank you for your message! Our sales executive has been notified and will contact you directly.");
+          }
+        }
       }
     } else if (eventType === "status") {
-      // Process delivery status reports (sent, delivered, read)
       const statusObj = value.statuses[0];
       const messageId = statusObj.id;
-      const messageStatus = statusObj.status; // "sent", "delivered", "read", "failed"
-      console.log(`[WhatsApp Controller] Status Update: Msg ${messageId} is now ${messageStatus} for ${statusObj.recipient_id}`);
+      const messageStatus = statusObj.status;
+      console.log(`[WhatsApp Controller] Status Update: Msg ${messageId} is now ${messageStatus}`);
 
-      // Update ContactInquiry status if it matches this messageId
       try {
         await ContactInquiry.updateOne(
           { whatsappCustomerMessageId: messageId },
           { whatsappCustomerMessageStatus: messageStatus }
         );
       } catch (dbErr) {
-        console.error("❌ Failed to update ContactInquiry status on webhook event:", dbErr.message);
+        console.error("❌ Failed to update ContactInquiry status:", dbErr.message);
       }
-    } else {
-      console.log("[WhatsApp Controller] Received non-messages/non-statuses changes event:", JSON.stringify(payload));
+
+      // ── CRM: Update Message delivery status and emit real-time tick ───────
+      try {
+        const crmMsg = await Message.findOne({ metaMessageId: messageId });
+        if (crmMsg) {
+          const previousStatus = crmMsg.deliveryStatus;
+          crmMsg.deliveryStatus = messageStatus;
+          await crmMsg.save();
+
+          // Log the transition in audit trail
+          await MessageStatus.create({
+            message: crmMsg._id,
+            previousStatus,
+            newStatus: messageStatus,
+            rawMetaPayload: statusObj
+          });
+
+          // Emit real-time delivery tick to dashboard
+          emitToAdmins("message_status", {
+            chatId: crmMsg.chat,
+            messageId: crmMsg._id,
+            metaMessageId: messageId,
+            status: messageStatus
+          });
+        }
+      } catch (crmErr) {
+        console.error("❌ [CRM] Status update error:", crmErr.message);
+      }
+      // ──────────────────────────────────────────────────────────────────────
     }
 
-    // Mark as processed successfully
     if (logDoc) {
       logDoc.processed = true;
       await logDoc.save();
@@ -165,86 +488,632 @@ export const receiveWebhook = async (req, res) => {
     if (logDoc) {
       logDoc.error = error.message;
       logDoc.processed = false;
-      try {
-        await logDoc.save();
-      } catch (saveErr) {
-        console.error("❌ Failed to update error log in database:", saveErr.message);
-      }
+      try { await logDoc.save(); } catch (saveErr) { /* ignore */ }
     }
   }
 };
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   CONVERSATIONAL CHATBOT HANDLERS
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const startSiteVisitBookingFlow = async (phone) => {
+  await ConversationState.deleteMany({ phone }); // reset
+  await ConversationState.create({
+    phone,
+    currentFlow: "site_visit_booking",
+    currentStep: 1,
+    collectedData: {},
+    updatedAt: new Date()
+  });
+  await whatsappService.sendTextMessage(phone, "Great! Let's book a site visit.\n\nFirst, please provide your **Full Name**:");
+};
+
+const handleSiteVisitBooking = async (phone, textBody, state, customerName) => {
+  const step = state.currentStep;
+  const data = state.collectedData || {};
+
+  if (step === 1) {
+    data.name = textBody;
+    state.currentStep = 2;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(
+      phone,
+      `Got it, ${textBody}!\n\nYour number is currently detected as ${phone}. Would you like to use this number for contact, or specify a different number? Reply with *YES* to use it, or type your preferred 10-digit phone number:`
+    );
+  } else if (step === 2) {
+    if (textBody.toUpperCase() === "YES") {
+      data.phone = phone;
+    } else {
+      const cleanNum = textBody.replace(/[^0-9]/g, "");
+      if (cleanNum.length >= 10) {
+        data.phone = cleanNum;
+      } else {
+        await whatsappService.sendTextMessage(phone, "Please provide a valid 10-digit phone number, or reply *YES* to confirm:");
+        return;
+      }
+    }
+
+    // List active projects
+    const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+    if (projects.length === 0) {
+      data.projectId = null;
+      data.projectName = "General Site Visit";
+      state.currentStep = 4; // Skip project choice
+      state.collectedData = data;
+      state.updatedAt = new Date();
+      await state.save();
+      await whatsappService.sendTextMessage(phone, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
+    } else {
+      const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
+      data.projectList = projects.map(p => p._id);
+      state.currentStep = 3;
+      state.collectedData = data;
+      state.updatedAt = new Date();
+      await state.save();
+      await whatsappService.sendTextMessage(phone, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
+    }
+  } else if (step === 3) {
+    const idx = parseInt(textBody, 10) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
+      await whatsappService.sendTextMessage(phone, "Invalid project choice. Please reply with a valid number from the catalog list:");
+      return;
+    }
+    const projectId = data.projectList[idx];
+    const project = await Project.findById(projectId);
+    
+    data.projectId = project._id;
+    data.projectName = project.title;
+    state.currentStep = 4;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(phone, `Excellent. You've chosen *${project.title}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
+  } else if (step === 4) {
+    const parsedDate = parseDateStr(textBody);
+    if (!parsedDate) {
+      await whatsappService.sendTextMessage(phone, "Invalid date format. Please type the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
+      return;
+    }
+    data.date = textBody;
+    state.currentStep = 5;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(phone, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
+  } else if (step === 5) {
+    data.time = textBody;
+    state.currentStep = 6;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(phone, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
+  } else if (step === 6) {
+    const visitors = parseInt(textBody, 10);
+    if (isNaN(visitors) || visitors <= 0) {
+      await whatsappService.sendTextMessage(phone, "Please enter a valid positive number for the visitor count:");
+      return;
+    }
+    data.visitors = visitors;
+    state.currentStep = 7;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(phone, "Any **Special Notes** or requests? (Reply with *SKIP* or *NONE* if none):");
+  } else if (step === 7) {
+    const notes = ["SKIP", "NONE"].includes(textBody.toUpperCase()) ? "" : textBody;
+    const dateObj = parseDateStr(data.date);
+
+    // Save appointment immediately
+    const apt = await Appointment.create({
+      customerName: data.name,
+      customerPhone: data.phone,
+      project: data.projectId || null,
+      projectName: data.projectName,
+      preferredDate: dateObj,
+      preferredTime: data.time,
+      numberOfVisitors: data.visitors,
+      notes: notes,
+      status: "Confirmed"
+    });
+
+    // Send customer confirmation
+    const customerConfirmText = 
+      `Hello ${data.name}\n` +
+      `Your Site Visit is Confirmed.\n` +
+      `Project: ${data.projectName}\n` +
+      `Date: ${data.date}\n` +
+      `Time: ${data.time}\n` +
+      `Reference: ${apt.referenceId}\n` +
+      `Thank you.`;
+
+    await whatsappService.sendTextMessage(phone, customerConfirmText);
+
+    // Send admin notification
+    const adminAlertText = 
+      `📅 *NEW SITE VISIT*\n\n` +
+      `Name: ${data.name}\n` +
+      `Phone: ${data.phone}\n` +
+      `Project: ${data.projectName}\n` +
+      `Date: ${data.date}\n` +
+      `Time: ${data.time}\n` +
+      `Visitors: ${data.visitors}\n` +
+      `Notes: ${notes || "None"}\n` +
+      `Reference ID: ${apt.referenceId}`;
+
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText);
+
+    // Clear state
+    await ConversationState.deleteOne({ phone });
+    console.log(`[Chatbot] Stateful visit booked successfully. Reference: ${apt.referenceId}`);
+  }
+};
+
+const startBrochureRequestFlow = async (phone) => {
+  const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+  if (projects.length === 0) {
+    await whatsappService.sendTextMessage(phone, "No projects are currently listed in our catalog.");
+    return;
+  }
+
+  await ConversationState.deleteMany({ phone }); // reset
+  const listText = projects.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n");
+
+  await ConversationState.create({
+    phone,
+    currentFlow: "brochure_request",
+    currentStep: 1,
+    collectedData: { projectList: projects.map(p => p._id) },
+    updatedAt: new Date()
+  });
+
+  await whatsappService.sendTextMessage(phone, `Which project would you like the brochure for? (Reply with the option number):\n\n${listText}`);
+};
+
+const handleBrochureRequest = async (phone, textBody, state, customerName) => {
+  const data = state.collectedData || {};
+  const idx = parseInt(textBody, 10) - 1;
+
+  if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
+    await whatsappService.sendTextMessage(phone, "Invalid project choice. Please reply with a valid number from the catalog list:");
+    return;
+  }
+
+  const projectId = data.projectList[idx];
+  const project = await Project.findById(projectId);
+
+  if (project.brochure && project.brochure.url) {
+    // Send PDF document via WhatsApp Document
+    try {
+      const fileName = `${project.title.replace(/\s+/g, "_")}_Brochure.pdf`;
+      await whatsappService.sendDocument(phone, project.brochure.url, fileName, `Brochure for ${project.title}`);
+      
+      // Log download success
+      await BrochureDownload.create({
+        customerPhone: phone,
+        projectId: project._id,
+        projectName: project.title,
+        status: "sent"
+      });
+
+      // Increment project downloads
+      project.downloadCount = (project.downloadCount || 0) + 1;
+      await project.save();
+    } catch (err) {
+      console.error("❌ Failed to send brochure document:", err.message);
+      await BrochureDownload.create({
+        customerPhone: phone,
+        projectId: project._id,
+        projectName: project.title,
+        status: "failed"
+      });
+      await whatsappService.sendTextMessage(phone, "Sorry, we encountered a delivery issue. Please try downloading again later.");
+    }
+  } else {
+    // Fallback if missing
+    await whatsappService.sendTextMessage(phone, `Brochure for this project isn't available yet. Would you like to speak with our sales team instead?`);
+    
+    // Log failure
+    await BrochureDownload.create({
+      customerPhone: phone,
+      projectId: project._id,
+      projectName: project.title,
+      status: "failed"
+    });
+
+    // Notify admin
+    const adminText = 
+      `⚠️ *BROCHURE UNAVAILABLE ALERT*\n\n` +
+      `Customer *${customerName}* (${phone}) requested a brochure for project *${project.title}*, but no brochure file is uploaded in the settings area.`;
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminText);
+  }
+
+  // Clear state
+  await ConversationState.deleteOne({ phone });
+};
+
+const handleReschedule = async (phone, textBody, state, customerName) => {
+  const step = state.currentStep;
+  const data = state.collectedData || {};
+
+  if (step === 1) {
+    const parsedDate = parseDateStr(textBody);
+    if (!parsedDate) {
+      await whatsappService.sendTextMessage(phone, "Invalid date format. Please reply with the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
+      return;
+    }
+    data.newDate = textBody;
+    state.currentStep = 2;
+    state.collectedData = data;
+    state.updatedAt = new Date();
+    await state.save();
+    await whatsappService.sendTextMessage(phone, "Please enter your preferred **New Time** (e.g. 10:30 AM or 4:00 PM):");
+  } else if (step === 2) {
+    // Find latest confirmed/rescheduled appointment
+    const apt = await Appointment.findOne({
+      customerPhone: phone,
+      status: { $in: ["Confirmed", "Rescheduled"] }
+    }).sort({ createdAt: -1 });
+
+    if (!apt) {
+      await whatsappService.sendTextMessage(phone, "We couldn't locate an active visit booking for this number. Rescheduling flow aborted.");
+    } else {
+      const dateObj = parseDateStr(data.newDate);
+      apt.preferredDate = dateObj;
+      apt.preferredTime = textBody;
+      apt.status = "Rescheduled";
+      apt.remindersSent = { h24: false, h3: false, h1: false, m30: false }; // reset reminders
+      await apt.save();
+
+      // Confirm to customer
+      const confirmText = 
+        `Hello ${apt.customerName}\n` +
+        `Your Site Visit is Confirmed (Rescheduled).\n` +
+        `Project: ${apt.projectName}\n` +
+        `Date: ${data.newDate}\n` +
+        `Time: ${textBody}\n` +
+        `Reference: ${apt.referenceId}\n` +
+        `Thank you.`;
+      await whatsappService.sendTextMessage(phone, confirmText);
+
+      // Alert admin
+      const adminAlertText = 
+        `📅 *SITE VISIT RESCHEDULED*\n\n` +
+        `Name: ${apt.customerName}\n` +
+        `Phone: ${apt.customerPhone}\n` +
+        `Project: ${apt.projectName}\n` +
+        `New Date: ${data.newDate}\n` +
+        `New Time: ${textBody}\n` +
+        `Reference ID: ${apt.referenceId}`;
+      await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText);
+    }
+
+    // Clear state
+    await ConversationState.deleteOne({ phone });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ADMIN DIAGNOSTIC TEST ENDPOINTS (PROTECTED)
+   ───────────────────────────────────────────────────────────────────────────── */
+
 /**
- * POST /api/whatsapp/send
- * Sends custom WhatsApp text message (Admin endpoint)
+ * POST /api/test-brochure
+ * Sends project brochure PDF to a given number
  */
+export const testBrochure = async (req, res) => {
+  try {
+    const { phone, projectId } = req.body;
+    if (!phone || !projectId) {
+      return res.status(400).json({ success: false, message: "Missing phone or projectId in body" });
+    }
+
+    const project = await Project.findById(projectId);
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    if (!project.brochure?.url) {
+      return res.status(400).json({ success: false, message: "No brochure PDF uploaded for this project yet" });
+    }
+
+    const fileName = `${project.title.replace(/\s+/g, "_")}_Brochure.pdf`;
+    const response = await whatsappService.sendDocument(phone, project.brochure.url, fileName, `Brochure for ${project.title}`);
+
+    await BrochureDownload.create({
+      customerPhone: phone,
+      projectId: project._id,
+      projectName: project.title,
+      status: "sent"
+    });
+
+    project.downloadCount = (project.downloadCount || 0) + 1;
+    await project.save();
+
+    return res.status(200).json({ success: true, message: "Brochure document dispatched successfully", data: response });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /api/test-location
+ * Sends the location card to a given number
+ */
+export const testLocation = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ success: false, message: "Missing phone in body" });
+    }
+
+    await sendOfficeLocation(phone);
+    return res.status(200).json({ success: true, message: "Location pin card sequence dispatched successfully" });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /api/test-appointment
+ * Creates a test appointment directly
+ */
+export const testAppointment = async (req, res) => {
+  try {
+    const { name, phone, projectId, date, time, visitors, notes } = req.body;
+    if (!name || !phone || !date || !time) {
+      return res.status(400).json({ success: false, message: "Missing name, phone, date, or time in body" });
+    }
+
+    const parsedDate = parseDateStr(date) || new Date(date);
+    let projectName = "General Visit";
+    if (projectId) {
+      const proj = await Project.findById(projectId);
+      if (proj) projectName = proj.title;
+    }
+
+    const apt = await Appointment.create({
+      customerName: name,
+      customerPhone: phone,
+      project: projectId || null,
+      projectName,
+      preferredDate: parsedDate,
+      preferredTime: time,
+      numberOfVisitors: visitors || 1,
+      notes: notes || "",
+      status: "Confirmed"
+    });
+
+    // Alert admin
+    const adminAlertText = 
+      `📅 *NEW SITE VISIT*\n\n` +
+      `Name: ${name}\n` +
+      `Phone: ${phone}\n` +
+      `Project: ${projectName}\n` +
+      `Date: ${date}\n` +
+      `Time: ${time}\n` +
+      `Visitors: ${visitors || 1}\n` +
+      `Notes: ${notes || "None"}\n` +
+      `Reference ID: ${apt.referenceId}`;
+    await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText);
+
+    // Confirm to customer
+    const customerConfirmText = 
+      `Hello ${name}\n` +
+      `Your Site Visit is Confirmed.\n` +
+      `Project: ${projectName}\n` +
+      `Date: ${date}\n` +
+      `Time: ${time}\n` +
+      `Reference: ${apt.referenceId}\n` +
+      `Thank you.`;
+    await whatsappService.sendTextMessage(phone, customerConfirmText);
+
+    return res.status(200).json({ success: true, data: apt });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * POST /api/test-reminder
+ * Manually trigger a reminder for a given appointment ID
+ */
+export const testReminder = async (req, res) => {
+  try {
+    const { appointmentId, reminderType } = req.body;
+    if (!appointmentId) {
+      return res.status(400).json({ success: false, message: "Missing appointmentId in body" });
+    }
+
+    const apt = await Appointment.findById(appointmentId);
+    if (!apt) {
+      return res.status(404).json({ success: false, message: "Appointment not found" });
+    }
+
+    const type = reminderType || "30m";
+    const dateStr = apt.preferredDate.toLocaleDateString("en-IN");
+    
+    const response = await whatsappService.sendAppointmentReminder(apt.customerPhone, {
+      customerName: apt.customerName,
+      date: dateStr,
+      time: apt.preferredTime,
+      projectName: apt.projectName || "General",
+      relativeTimeText: "upcoming"
+    });
+
+    await ReminderLog.create({
+      appointmentId: apt._id,
+      reminderType: type,
+      status: "sent",
+      attemptCount: 1,
+      metaResponse: response
+    });
+
+    return res.status(200).json({ success: true, message: "Manual reminder message triggered successfully", data: response });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/admin/whatsapp/stats
+ * WhatsApp analytics endpoints for dashboard
+ */
+export const getWhatsAppStats = async (req, res) => {
+  try {
+    const isConfigured = !!(whatsappConfig.accessToken && whatsappConfig.phoneNumberId);
+    
+    const maskId = (id) => {
+      if (!id) return "Not Configured";
+      return `*...${id.slice(-4)}`;
+    };
+
+    const phoneIdMasked = maskId(whatsappConfig.phoneNumberId);
+    const businessIdMasked = maskId(whatsappConfig.businessAccountId);
+
+    const latestWebhook = await WebhookLog.findOne().sort({ createdAt: -1 });
+    const lastWebhookTime = latestWebhook ? latestWebhook.createdAt : null;
+
+    const latestMsg = await WebhookLog.findOne({ eventType: "message" }).sort({ createdAt: -1 });
+    const lastMsgTime = latestMsg ? latestMsg.createdAt : null;
+    const lastMsgDirection = latestMsg ? "incoming" : null;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const totalToday = await WebhookLog.countDocuments({
+      createdAt: { $gte: startOfToday },
+      eventType: "message"
+    });
+
+    const totalFailed = await WebhookLog.countDocuments({
+      createdAt: { $gte: startOfToday },
+      error: { $ne: null }
+    });
+
+    const totalSuccess = await WebhookLog.countDocuments({
+      createdAt: { $gte: startOfToday },
+      processed: true
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        connectionStatus: isConfigured ? "Connected" : "Disconnected",
+        phoneNumberId: phoneIdMasked,
+        businessAccountId: businessIdMasked,
+        webhookStatus: lastWebhookTime,
+        lastMessage: lastMsgTime ? { timestamp: lastMsgTime, direction: lastMsgDirection } : null,
+        totalToday,
+        totalFailed,
+        totalSuccess
+      }
+    });
+  } catch (err) {
+    console.error("[WhatsApp Stats] Error:", err.message);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LEGACY ENDPOINTS (COMPATIBILITY)
+   ───────────────────────────────────────────────────────────────────────────── */
+
 export const sendCustomText = async (req, res) => {
   try {
     const { phone, message } = req.body;
-
     if (!phone || !message) {
       return res.status(400).json({ success: false, message: "Missing phone or message in body" });
     }
-
     const response = await whatsappService.sendTextMessage(phone, message);
     return res.status(200).json({ success: true, data: response });
   } catch (error) {
-    console.error("[WhatsApp Controller] Send error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * POST /api/whatsapp/template
- * Sends custom template message (Admin endpoint)
- */
 export const sendCustomTemplate = async (req, res) => {
   try {
     const { phone, template, language, components } = req.body;
-
     if (!phone || !template) {
       return res.status(400).json({ success: false, message: "Missing phone or template in body" });
     }
-
-    const response = await whatsappService.sendTemplateMessage(
-      phone,
-      template,
-      language || "en_US",
-      components || []
-    );
+    const response = await whatsappService.sendTemplateMessage(phone, template, language || "en_US", components || []);
     return res.status(200).json({ success: true, data: response });
   } catch (error) {
-    console.error("[WhatsApp Controller] Template send error:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * POST /api/whatsapp/test
- * Immediate test endpoint
- */
 export const testWhatsApp = async (req, res) => {
   try {
     const { phone, message } = req.body;
     const targetPhone = phone || whatsappConfig.adminPhoneNumber;
     const textMsg = message || "Hello from Aaditya Group of Companies";
-
-    console.log(`[WhatsApp Controller] Triggering test message to ${targetPhone}`);
     const response = await whatsappService.sendTextMessage(targetPhone, textMsg);
-    
-    return res.status(200).json({
-      success: true,
-      message: "Test WhatsApp sent successfully",
-      recipient: targetPhone,
-      data: response
-    });
+    return res.status(200).json({ success: true, message: "Test WhatsApp sent successfully", data: response });
   } catch (error) {
-    console.error("[WhatsApp Controller] Test endpoint failure:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Test send failed",
-      error: error.message
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─── CRM Test Routes (admin-auth protected, registered in whatsappRoutes.js) ─
+export const testChat = async (req, res) => {
+  try {
+    const testPhone = `test_${Date.now()}`;
+    let customer = await Customer.findOneAndUpdate(
+      { phone: testPhone },
+      { $set: { name: "CRM Test User", lastActiveAt: new Date() } },
+      { upsert: true, new: true }
+    );
+    let chat = await Chat.findOneAndUpdate(
+      { customer: customer._id },
+      { $set: { status: "Open" } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    const msg = await Message.create({
+      chat: chat._id, direction: "incoming", messageType: "text",
+      body: "Test message from CRM test route", metaMessageId: `test_${Date.now()}`,
+      deliveryStatus: "delivered", timestamp: new Date()
     });
+    res.status(201).json({ success: true, message: "Test chat created", data: { customer, chat, msg } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const testSocket = async (req, res) => {
+  try {
+    emitToAdmins("test_event", { message: "Socket.IO CRM test ping", time: new Date() });
+    res.status(200).json({ success: true, message: "Socket.IO test event emitted to admins room" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const testMedia = async (req, res) => {
+  try {
+    res.status(200).json({
+      success: true,
+      message: "Simulate incoming media message — use a real Meta media webhook payload to trigger media download",
+      info: "Media is downloaded from Meta and re-uploaded to Cloudinary via persistMetaMedia()"
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+export const testReply = async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    const targetPhone = phone || whatsappConfig.adminPhoneNumber;
+    const text = message || "[CRM Test Reply] Hello from Aditya Builders CRM Dashboard";
+    const response = await whatsappService.sendTextMessage(targetPhone, text);
+    res.status(200).json({ success: true, message: "Test CRM reply sent", data: response });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
@@ -253,5 +1122,14 @@ export default {
   receiveWebhook,
   sendCustomText,
   sendCustomTemplate,
-  testWhatsApp
+  testWhatsApp,
+  testBrochure,
+  testLocation,
+  testAppointment,
+  testReminder,
+  getWhatsAppStats,
+  testChat,
+  testSocket,
+  testMedia,
+  testReply,
 };

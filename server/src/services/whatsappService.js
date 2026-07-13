@@ -272,16 +272,14 @@ export const sendPropertyInquiry = async (to, { property, budget, location }) =>
  * @param {string} details.time - Slot of meeting
  * @param {string} details.propertyName - Target construction project
  */
-export const sendAppointmentReminder = async (to, { customerName, date, time, propertyName }) => {
+export const sendAppointmentReminder = async (to, { customerName, date, time, projectName, relativeTimeText }) => {
   const text = 
-    `Hello ${customerName},\n\n` +
-    `This is a friendly reminder of your scheduled appointment regarding the project "${propertyName}".\n\n` +
-    `📅 Date: ${date}\n` +
-    `⏰ Time: ${time}\n\n` +
-    `We look forward to meeting you.\n\n` +
-    `Regards,\n` +
-    `Aaditya Group of Companies\n` +
-    `📞 +91 9974858500`;
+    `Hello ${customerName}\n` +
+    `This is a reminder. Your Site Visit is ${relativeTimeText}.\n` +
+    `Project: ${projectName}\n` +
+    `Date: ${date}\n` +
+    `Time: ${time}\n\n` +
+    `Need to reschedule? Reply YES or NO.`;
 
   return sendTextMessage(to, text);
 };

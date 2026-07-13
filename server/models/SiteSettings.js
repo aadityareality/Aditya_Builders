@@ -130,6 +130,13 @@ const siteSettingsSchema = new Schema(
     mapEmbedUrl: {
       type: String,
     },
+    
+    /** Office operational timings */
+    officeHours: {
+      type: String,
+      default: "Mon-Sat: 9:30 AM - 7:00 PM",
+      trim: true,
+    },
 
     /**
      * Company logo stored in Cloudinary.

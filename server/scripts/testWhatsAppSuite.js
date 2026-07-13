@@ -151,8 +151,14 @@ async function runTests() {
 
   // --- TEST 4: CHATBOT RESPONSES & FALLBACK LOGIC ---
   let originalSendTextMessage = whatsappService.sendTextMessage;
+  let originalSendInteractiveButtons = whatsappService.sendInteractiveButtons;
   let sentMessages = [];
+  
   whatsappService.sendTextMessage = async (to, text) => {
+    sentMessages.push({ to, text });
+    return { success: true, mock: true };
+  };
+  whatsappService.sendInteractiveButtons = async (to, text, buttons) => {
     sentMessages.push({ to, text });
     return { success: true, mock: true };
   };
@@ -195,7 +201,7 @@ async function runTests() {
     let replies = await simulateIncomingMessage("919998112121", "Alice", "Hi");
     recordResult(
       "Chatbot Trigger: 'Hi'",
-      replies.length === 1 && replies[0].text.includes("Welcome to Aaditya Group of Companies"),
+      replies.length === 1 && replies[0].text.includes("Welcome to Aaditya Builders"),
       `Reply: "${replies[0]?.text}"`
     );
 
@@ -219,7 +225,7 @@ async function runTests() {
     replies = await simulateIncomingMessage("919998112121", "Alice", "Location");
     recordResult(
       "Chatbot Trigger: 'Location'",
-      replies.length === 1 && replies[0].text.includes("Aaditya Elegance"),
+      replies.length === 1 && replies[0].text.includes("Bhavnagar"),
       `Reply: "${replies[0]?.text}"`
     );
 
@@ -227,7 +233,7 @@ async function runTests() {
     replies = await simulateIncomingMessage("919998112121", "Alice", "Contact");
     recordResult(
       "Chatbot Trigger: 'Contact'",
-      replies.length === 1 && replies[0].text.includes("+91 9974858500"),
+      replies.length === 1 && replies[0].text.includes("99748"),
       `Reply: "${replies[0]?.text}"`
     );
 
@@ -235,16 +241,15 @@ async function runTests() {
     replies = await simulateIncomingMessage("919998112121", "Alice", "Is there a penthouse available?");
     recordResult(
       "Chatbot Fallback: Forward to Admin",
-      replies.length === 1 && 
-      replies[0].to === whatsappConfig.adminPhoneNumber &&
-      replies[0].text.includes("Alice") &&
-      replies[0].text.includes("Is there a penthouse available?"),
+      replies.length === 2 && 
+      replies.some(r => r.to === whatsappConfig.adminPhoneNumber && r.text.includes("Alice") && r.text.includes("Is there a penthouse available?")),
       `Admin Alert Recipient: ${replies[0]?.to}, Alert Text: "${replies[0]?.text.replace(/\n/g, " ")}"`
     );
   } catch (err) {
     recordResult("Chatbot Verification Suite", false, err.message);
   } finally {
     whatsappService.sendTextMessage = originalSendTextMessage;
+    whatsappService.sendInteractiveButtons = originalSendInteractiveButtons;
   }
 
   // --- TEST 5: MONGODB LOGGING VERIFICATION ---

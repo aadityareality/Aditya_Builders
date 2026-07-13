@@ -32,6 +32,7 @@ export default function AdminSettings() {
     mapLongitude: "",
     logoUrl: "",
     logoPublicId: "",
+    officeHours: "",
   });
 
   const loadSettingsData = async () => {
@@ -58,6 +59,7 @@ export default function AdminSettings() {
           mapLongitude: s.mapLongitude !== null && s.mapLongitude !== undefined ? s.mapLongitude : "",
           logoUrl: s.logo?.url || "",
           logoPublicId: s.logo?.publicId || "",
+          officeHours: s.officeHours || "",
         });
         setLogoFile(null);
       }
@@ -95,6 +97,7 @@ export default function AdminSettings() {
     fd.append("whatsappNumber", formData.whatsappNumber);
     fd.append("mapLatitude", formData.mapLatitude);
     fd.append("mapLongitude", formData.mapLongitude);
+    fd.append("officeHours", formData.officeHours);
 
     const numbersArray = formData.phoneNumbers ? formData.phoneNumbers.split(",").map((i) => i.trim()).filter(Boolean) : [];
     fd.append("phoneNumbers", JSON.stringify(numbersArray));
@@ -330,6 +333,20 @@ export default function AdminSettings() {
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 placeholder="Plot no 3, Jewels Circle, Bhavnagar"
                 className="w-full px-4 py-2 rounded-xl border border-amber-100 focus:outline-none bg-[#FFFBF5]/20 font-semibold resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-[#6B625A] uppercase tracking-wider mb-2">
+                Office Operating Hours
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.officeHours}
+                onChange={(e) => setFormData({ ...formData, officeHours: e.target.value })}
+                placeholder="e.g. Mon-Sat: 9:30 AM - 7:00 PM"
+                className="w-full px-4 py-2.5 rounded-xl border border-amber-100 focus:outline-none bg-[#FFFBF5]/20 font-semibold"
               />
             </div>
           </div>

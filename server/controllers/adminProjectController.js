@@ -146,6 +146,14 @@ export const createProject = [
     }
     payload.gallery = gallery;
 
+    // Map brochure file if uploaded
+    if (req.files && req.files["brochure"] && req.files["brochure"][0]) {
+      const file = req.files["brochure"][0];
+      payload.brochure = { url: file.path, publicId: file.filename, uploadedAt: new Date() };
+    } else if (payload.brochure && typeof payload.brochure === "string") {
+      try { payload.brochure = JSON.parse(payload.brochure); } catch { /* ignore */ }
+    }
+
     const project = await Project.create(payload);
     res.status(201).json({ success: true, data: project });
   }),
@@ -210,6 +218,26 @@ export const updateProject = [
     } else if (updates.coverImage && typeof updates.coverImage === "string") {
       try {
         updates.coverImage = JSON.parse(updates.coverImage);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // Handle brochure PDF replacement
+    if (req.files && req.files["brochure"] && req.files["brochure"][0]) {
+      const file = req.files["brochure"][0];
+      // Delete old brochure from Cloudinary (must pass resource_type: "raw")
+      if (project.brochure && project.brochure.publicId) {
+        try {
+          await cloudinary.uploader.destroy(project.brochure.publicId, { resource_type: "raw" });
+        } catch (err) {
+          console.warn("Failed to delete old project brochure from Cloudinary:", err.message);
+        }
+      }
+      updates.brochure = { url: file.path, publicId: file.filename, uploadedAt: new Date() };
+    } else if (updates.brochure && typeof updates.brochure === "string") {
+      try {
+        updates.brochure = JSON.parse(updates.brochure);
       } catch {
         /* ignore */
       }

@@ -35,6 +35,9 @@ const AdminGallery      = lazy(() => import("./admin/pages/AdminGallery.jsx"));
 const AdminTeam         = lazy(() => import("./admin/pages/AdminTeam.jsx"));
 const AdminSettings     = lazy(() => import("./admin/pages/AdminSettings.jsx"));
 const AdminUsers        = lazy(() => import("./admin/pages/AdminUsers.jsx"));
+const AdminAppointments = lazy(() => import("./admin/pages/AdminAppointments.jsx"));
+const WhatsAppCRM       = lazy(() => import("./admin/pages/WhatsAppCRM.jsx"));
+const ChatAnalytics     = lazy(() => import("./admin/pages/ChatAnalytics.jsx"));
 
 const ADMIN_SLUG = import.meta.env.VITE_ADMIN_SLUG || "/secure-panel-x9k2";
 
@@ -143,6 +146,14 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="appointments"
+                  element={
+                    <ProtectedAdminRoute>
+                      <AdminAppointments />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
                   path="leads/:id"
                   element={
                     <ProtectedAdminRoute>
@@ -215,6 +226,24 @@ export default function App() {
                   element={
                     <ProtectedAdminRoute requireSuperadmin>
                       <AdminUsers />
+                    </ProtectedAdminRoute>
+                  }
+                />
+
+                {/* WhatsApp CRM Live Chat Dashboard */}
+                <Route
+                  path="whatsapp-crm"
+                  element={
+                    <ProtectedAdminRoute>
+                      <WhatsAppCRM />
+                    </ProtectedAdminRoute>
+                  }
+                />
+                <Route
+                  path="chat-analytics"
+                  element={
+                    <ProtectedAdminRoute>
+                      <ChatAnalytics />
                     </ProtectedAdminRoute>
                   }
                 />

@@ -51,6 +51,12 @@ export const contactAttachmentStorage = new CloudinaryStorage({
 export const projectCombinedStorage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
+    if (file.fieldname === "brochure") {
+      return {
+        folder: "adityabuilders/projects/brochures",
+        resource_type: "raw",
+      };
+    }
     const isCover = file.fieldname === "coverImage";
     return standardParams(
       isCover ? "adityabuilders/projects/covers" : "adityabuilders/projects/gallery"
@@ -66,6 +72,22 @@ const imageFileFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     cb(new Error("Only image files are allowed!"), false);
+  }
+};
+
+const projectFileFilter = (req, file, cb) => {
+  if (file.fieldname === "brochure") {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF files are allowed for brochure!"), false);
+    }
+  } else {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files are allowed!"), false);
+    }
   }
 };
 
@@ -112,12 +134,13 @@ export const uploadContactAttachment = multer({
   fileFilter: imageFileFilter,
 });
 
-// Combined project files handler (handles coverImage [1] + gallery [10] in one middleware)
+// Combined project files handler (handles coverImage [1] + gallery [10] + brochure [1] in one middleware)
 export const uploadProjectFiles = multer({
   storage: projectCombinedStorage,
   limits,
-  fileFilter: imageFileFilter,
+  fileFilter: projectFileFilter,
 }).fields([
   { name: "coverImage", maxCount: 1 },
   { name: "gallery", maxCount: 10 },
+  { name: "brochure", maxCount: 1 },
 ]);
