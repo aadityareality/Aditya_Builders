@@ -290,7 +290,7 @@ export const sendCrmReply = catchAsync(async (req, res) => {
   const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
 
   // Broadcast back to connected admins and the specific conversation room
-  emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
+  emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg, customer }, customer.assignedExecutive, chat._id);
   emitToAdmins("chat_status_changed", { chatId: chat._id, status: "Waiting Customer" }, customer.assignedExecutive, chat._id);
 
   res.status(201).json({ success: true, data: populatedMsg });

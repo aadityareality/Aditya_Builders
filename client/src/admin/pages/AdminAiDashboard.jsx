@@ -64,7 +64,7 @@ export default function AdminAiDashboard() {
           <FiCpu />
         </div>
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight">AI Assistant Insights</h1>
+          <h1 className="!text-xl md:!text-2xl font-extrabold tracking-tight text-white">AI Assistant Insights</h1>
           <p className="text-xs text-amber-200 mt-1">Review AI bot conversations, API cost metrics, and lead qualification charts</p>
         </div>
       </div>

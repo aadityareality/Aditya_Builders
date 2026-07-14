@@ -221,7 +221,7 @@ export default function WhatsAppBroadcast() {
     <div className="space-y-6 text-left">
       {/* Title */}
       <div>
-        <h1 className="text-2xl font-bold text-[#2E2A26]">WhatsApp Marketing Campaigns</h1>
+        <h1 className="!text-xl md:!text-2xl font-bold text-[#2E2A26]">WhatsApp Marketing Campaigns</h1>
         <p className="text-xs text-[#6B625A] mt-1">
           Compose promotions, announcements, or custom updates and broadcast them to your selected customer database in real time.
         </p>
@@ -619,7 +619,7 @@ export default function WhatsAppBroadcast() {
                         </div>
                       </td>
                       <td className="p-3 text-gray-500 font-bold">
-                        {item.sentBy || "System Bot"}
+                        {typeof item.sentBy === "object" ? (item.sentBy?.name || "System Bot") : (item.sentBy || "System Bot")}
                       </td>
                     </tr>
                   );

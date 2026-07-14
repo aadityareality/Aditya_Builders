@@ -122,7 +122,7 @@ export default function AdminFaqManagement() {
             <FiBookOpen />
           </div>
           <div>
-            <h1 className="text-xl font-extrabold tracking-tight">AI Grounding FAQs</h1>
+            <h1 className="!text-xl md:!text-2xl font-extrabold tracking-tight text-white">AI Grounding FAQs</h1>
             <p className="text-xs text-amber-200 mt-1">Manage database facts that ground the WhatsApp AI Bot answers</p>
           </div>
         </div>

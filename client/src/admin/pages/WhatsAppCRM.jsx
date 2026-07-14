@@ -196,9 +196,13 @@ export default function WhatsAppCRM() {
         if (exists) {
           return prev.map(c =>
             c.chatId?.toString() === data.chatId?.toString()
-              ? { ...c, customer: data.customer }
+              ? { ...c, customer: data.customer || c.customer }
               : c
-          ).sort((a, b) => new Date(b.customer.lastMessageAt) - new Date(a.customer.lastMessageAt));
+          ).sort((a, b) => {
+            const tA = a.customer?.lastMessageAt ? new Date(a.customer.lastMessageAt).getTime() : 0;
+            const tB = b.customer?.lastMessageAt ? new Date(b.customer.lastMessageAt).getTime() : 0;
+            return tB - tA;
+          });
         }
         // New conversation — prepend to list
         return [{ customer: data.customer, chatId: data.chatId, chatStatus: "Open" }, ...prev];
