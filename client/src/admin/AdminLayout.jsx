@@ -17,6 +17,8 @@ import {
   FiSend,
   FiCpu,
   FiBookOpen,
+  FiMenu,
+  FiX,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import logoImg from "../assets/logo.jpg";
@@ -33,6 +35,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [newLeadsCount, setNewLeadsCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Poll server for new leads count to update notification badge
   const fetchNewLeadsCount = async () => {
@@ -131,20 +134,39 @@ export default function AdminLayout() {
   }
 
   return (
-    <div className="min-h-screen flex bg-[#FFFBF5] text-[#2E2A26] font-sans antialiased">
+    <div className="min-h-screen flex bg-[#FFFBF5] text-[#2E2A26] font-sans antialiased relative overflow-x-hidden">
+      {/* Overlay Backdrop for Mobile */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 z-45 md:hidden transition-opacity duration-300"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar navigation drawer */}
-      <aside className="w-64 bg-[#2E2A26] text-[#FFFBF5] flex flex-col shrink-0 border-r border-[#3D3732] shadow-xl z-20">
+      <aside className={`fixed inset-y-0 left-0 w-64 bg-[#2E2A26] text-[#FFFBF5] flex flex-col z-50 transition-transform duration-300 md:relative md:translate-x-0 ${
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
         {/* Brand header */}
-        <div className="p-6 border-b border-[#3D3732] flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-500 bg-white shrink-0">
-            <img src={logoImg} alt="Aditya Builders Logo" className="w-full h-full object-cover" />
+        <div className="p-6 border-b border-[#3D3732] flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-500 bg-white shrink-0">
+              <img src={logoImg} alt="Aditya Builders Logo" className="w-full h-full object-cover" />
+            </div>
+            <div className="text-left">
+              <span className="font-extrabold text-sm tracking-tight text-white block">Aditya CMS</span>
+              <span className="text-[10px] text-[#F5A623] font-bold block uppercase tracking-wider mt-0.5">
+                {admin.role}
+              </span>
+            </div>
           </div>
-          <div className="text-left">
-            <span className="font-extrabold text-sm tracking-tight text-white block">Aditya CMS</span>
-            <span className="text-[10px] text-[#F5A623] font-bold block uppercase tracking-wider mt-0.5">
-              {admin.role}
-            </span>
-          </div>
+          <button 
+            onClick={() => setSidebarOpen(false)}
+            className="p-1 text-gray-400 hover:text-white md:hidden"
+            aria-label="Close menu"
+          >
+            <FiX className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Sidebar Navigation items */}
@@ -155,6 +177,7 @@ export default function AdminLayout() {
               <Link
                 key={link.name}
                 to={link.path}
+                onClick={() => setSidebarOpen(false)}
                 className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                   isActive
                     ? "bg-[#F5A623] text-white shadow-md shadow-amber-500/10"
@@ -180,6 +203,7 @@ export default function AdminLayout() {
           {admin.role === "superadmin" && (
             <Link
               to={`${ADMIN_SLUG}/admins`}
+              onClick={() => setSidebarOpen(false)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                 location.pathname.startsWith(`${ADMIN_SLUG}/admins`)
                   ? "bg-[#F5A623] text-white shadow-md shadow-amber-500/10"
@@ -214,21 +238,28 @@ export default function AdminLayout() {
       {/* Main Content Area */}
       <div className="flex-grow flex flex-col min-w-0">
         {/* Topbar panel */}
-        <header className="h-16 bg-white border-b border-amber-100/50 flex items-center justify-between px-8 shadow-sm">
-          <div className="flex items-center gap-3 text-left">
-            <span className="text-xs font-semibold text-[#6B625A] tracking-wider uppercase">
+        <header className="h-16 bg-white border-b border-amber-100/50 flex items-center justify-between px-4 md:px-8 shadow-sm">
+          <div className="flex items-center gap-2 md:gap-3 text-left">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 text-gray-500 hover:text-gray-800 focus:outline-none md:hidden"
+              aria-label="Open menu"
+            >
+              <FiMenu className="w-5 h-5" />
+            </button>
+            <span className="text-xs font-semibold text-[#6B625A] tracking-wider uppercase hidden sm:inline-block">
               Aditya Builders Portal
             </span>
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-sm animate-pulse"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-sm animate-pulse hidden sm:inline-block"></span>
           </div>
           <div className="flex items-center gap-4">
             <a
               href="/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-bold text-[#E8871E] hover:text-[#F5A623] flex items-center gap-1.5 py-1.5 px-3 rounded-lg hover:bg-amber-50/50 transition-colors"
+              className="text-xs font-bold text-[#E8871E] hover:text-[#F5A623] flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg hover:bg-amber-50/50 transition-colors"
             >
-              Preview Public Site <FiExternalLink className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline">Preview Public Site</span> <FiExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </header>

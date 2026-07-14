@@ -13,9 +13,10 @@ apiInstance.interceptors.response.use(
   (res) => res,
   (err) => {
     const isAuthCheck = err.config?.url?.includes("/admin/auth/me");
-    const isLoginPage = window.location.pathname.includes("login");
-    // Only fire session-expired if not on auth/me check and not already on login page
-    if (err.response?.status === 401 && !isAuthCheck && !isLoginPage) {
+    const isLoginAction = err.config?.url?.includes("/admin/auth/login");
+    const isLoginPage = window.location.pathname.includes("login") || window.location.pathname.includes("secure-panel");
+    // Only fire session-expired if not on auth/me check, not on login endpoint, and not on login/secure-panel paths
+    if (err.response?.status === 401 && !isAuthCheck && !isLoginAction && !isLoginPage) {
       if (window.handleUnauthorized) {
         window.handleUnauthorized();
       }
