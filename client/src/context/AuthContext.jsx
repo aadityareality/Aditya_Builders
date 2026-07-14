@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
 
     // Register global handler for unauthorized requests
     window.handleUnauthorized = () => {
+      localStorage.removeItem("admin_token");
       setAdmin(null);
       toast.error("Session expired. Please log in again.");
     };
@@ -41,6 +42,9 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await api.post("/admin/auth/login", { email, password });
       if (data.success && data.admin) {
+        if (data.token) {
+          localStorage.setItem("admin_token", data.token);
+        }
         setAdmin(data.admin);
         toast.success(`Welcome back, ${data.admin.name}!`);
         return { success: true };
@@ -55,10 +59,12 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/admin/auth/logout");
+    } catch {
+      // Ignore network errors on logout to ensure client states are cleaned up
+    } finally {
+      localStorage.removeItem("admin_token");
       setAdmin(null);
       toast.success("Logged out successfully.");
-    } catch {
-      toast.error("Logout failed.");
     }
   };
 

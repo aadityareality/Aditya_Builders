@@ -92,7 +92,7 @@ export const loginAdmin = [
         email: admin.email,
         role:  admin.role,
       },
-      // Token intentionally NOT included in JSON body — it's in the httpOnly cookie
+      token, // fallback for third-party cookie blocking
     });
   }),
 ];

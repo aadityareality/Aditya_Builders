@@ -8,6 +8,18 @@ const apiInstance = axios.create({
   withCredentials: true, // Crucial for session cookies
 });
 
+// Interceptor to inject Authorization Bearer token fallback if present in localStorage
+apiInstance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("admin_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (err) => Promise.reject(err)
+);
+
 // Interceptor to manage errors or session expiry
 apiInstance.interceptors.response.use(
   (res) => res,

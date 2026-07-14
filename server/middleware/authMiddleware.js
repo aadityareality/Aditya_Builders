@@ -16,7 +16,12 @@ import Admin from "../models/Admin.js";
  */
 export const protect = async (req, res, next) => {
   try {
-    const token = req.cookies?.admin_token;
+    let token = req.cookies?.admin_token;
+
+    // Check Authorization header fallback (for mobile browsers blocking third-party cookies)
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    }
 
     if (!token) {
       return res.status(401).json({
