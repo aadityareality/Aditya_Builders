@@ -191,10 +191,12 @@ export const getChatMessages = catchAsync(async (req, res) => {
   const total = await Message.countDocuments({ chat: chatId, isDeleted: { $ne: true } });
   
   const messages = await Message.find({ chat: chatId, isDeleted: { $ne: true } })
-    .sort({ timestamp: 1 })
+    .sort({ timestamp: -1 })
     .skip(skip)
     .limit(Number(limit))
     .populate("sentBy", "name email");
+
+  messages.reverse();
 
   res.status(200).json({
     success: true,
