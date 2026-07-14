@@ -92,11 +92,6 @@ export default function AdminLayout() {
       icon: <FiSend className="w-4 h-4" />,
     },
     {
-      name: "AI Insights",
-      path: `${ADMIN_SLUG}/ai-dashboard`,
-      icon: <FiCpu className="w-4 h-4" />,
-    },
-    {
       name: "AI FAQs Grounding",
       path: `${ADMIN_SLUG}/ai-faqs`,
       icon: <FiBookOpen className="w-4 h-4" />,
