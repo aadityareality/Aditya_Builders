@@ -327,6 +327,118 @@ const sendBotDocument = async (to, messageId, url, fileName, caption) => {
   }
 };
 
+/**
+ * Parses structured gallery inquiry form text sent from the website
+ */
+const parseGalleryInquiry = (text) => {
+  if (!text || !text.includes("gallery design")) return null;
+
+  const nameMatch = text.match(/Name:\s*([^\n\r]+)/i);
+  const emailMatch = text.match(/Email:\s*([^\n\r]+)/i);
+  const phoneMatch = text.match(/Phone:\s*([^\n\r]+)/i);
+  const designMatch = text.match(/Design\/Image:\s*([^\n\r\-]+)/i);
+  const fullDesignMatch = text.match(/Design\/Image:\s*([^\n\r]+)/i);
+
+  if (!nameMatch) return null;
+
+  return {
+    name: nameMatch ? nameMatch[1].trim() : "",
+    email: emailMatch ? emailMatch[1].trim() : "",
+    phone: phoneMatch ? phoneMatch[1].trim() : "",
+    projectQuery: designMatch ? designMatch[1].trim() : "",
+    fullDesign: fullDesignMatch ? fullDesignMatch[1].trim() : ""
+  };
+};
+
+/**
+ * Handles the custom gallery inquiry flow: updates CRM, sends project cover image & details
+ */
+const handleGalleryInquiry = async (phone, messageId, inquiry) => {
+  try {
+    console.log(`🎯 [Gallery Inquiry] Processing form for ${inquiry.name} (${phone})`);
+
+    // 2. Resolve or create customer profile with real name and email
+    let customer = await Customer.findOne({ phone });
+    if (!customer) {
+      customer = new Customer({
+        phone,
+        name: inquiry.name,
+        email: inquiry.email,
+        source: "WhatsApp",
+        leadStatus: "Interested",
+        stage: "Engaged",
+        leadScore: 50
+      });
+    } else {
+      customer.name = inquiry.name;
+      if (inquiry.email) customer.email = inquiry.email;
+      customer.leadScore = Math.max(customer.leadScore || 0, 50);
+      customer.leadStatus = "Interested";
+      customer.stage = "Engaged";
+    }
+    await customer.save();
+
+    // 3. Query matching project listing
+    let project = null;
+    if (inquiry.projectQuery) {
+      project = await Project.findOne({
+        title: { $regex: inquiry.projectQuery, $options: "i" },
+        isActive: true
+      });
+    }
+
+    // 4. Send dispatch alerts
+    const formattedPhone = whatsappService.formatPhoneNumber(phone);
+
+    if (project) {
+      let replyText = 
+        `Hello, *${inquiry.name}*! 👋 Thank you for inquiring about *${project.title}* via our gallery. Here are the project details:\n\n` +
+        `🏗️ *Project:* ${project.title}\n` +
+        `📍 *Location:* ${project.location}\n` +
+        `💰 *Starting Price:* ${project.startingPrice || "N/A"}\n` +
+        `🏢 *Type:* ${project.type}\n` +
+        `📐 *Configuration:* ${project.configuration || "N/A"}\n` +
+        `📅 *Possession:* ${project.possessionDate || "N/A"}\n`;
+
+      if (project.brochure?.url) {
+        replyText += `📄 *Download Brochure:* ${project.brochure.url}\n`;
+      }
+
+      replyText += `\nIf you have any questions or would like to book a site visit, reply here. Our team will assist you shortly!`;
+
+      // A. Send Project Cover Photo
+      if (project.coverImage?.url) {
+        console.log(`🖼️ [Gallery Inquiry] Dispatching cover photo for ${project.title}: ${project.coverImage.url}`);
+        await whatsappService.sendImage(
+          formattedPhone,
+          project.coverImage.url,
+          `*${project.title}* - Design/Image Inquiry`
+        ).catch(e => console.error("⚠️ Failed to send project cover image:", e.message));
+      }
+
+      // B. Send Project Text Details
+      await whatsappService.sendTextMessage(formattedPhone, replyText);
+    } else {
+      // General response if project not found
+      const fallbackText = 
+        `Hello, *${inquiry.name}*! 👋 Thank you for inquiring about our design: *${inquiry.fullDesign}*.\n\n` +
+        `Our sales representatives will follow up shortly with pricing, configuration options, and brochure files.`;
+      
+      await whatsappService.sendTextMessage(formattedPhone, fallbackText);
+    }
+
+    // Notify admins of new high-intent lead
+    emitToAdmins("notification", {
+      type: "inquiry_received",
+      title: "🎯 New Gallery Inquiry",
+      body: `Customer ${inquiry.name} (${phone}) is inquiring about ${inquiry.fullDesign}.`
+    });
+
+  } catch (err) {
+    console.error("❌ handleGalleryInquiry Error:", err.message);
+  }
+};
+
 // ── AI Bot Fallback Handler (Phase 4 Group A) ────────────────────────────────
 const handleAiFallback = async (phone, textBody, messageId, customerName) => {
   try {
@@ -730,8 +842,8 @@ export const receiveWebhook = async (req, res) => {
           cloudinaryUrl = await persistMetaMedia(mediaObj.id, mediaObj.mime_type || "application/octet-stream");
         }
       }
-      // Log to CRM (non-blocking)
-      logIncomingToCRM(message, customerName, from, cloudinaryUrl).catch(e =>
+      // Log to CRM (blocking to prevent customer registration race condition)
+      await logIncomingToCRM(message, customerName, from, cloudinaryUrl).catch(e =>
         console.error("❌ [CRM] Background log error:", e.message)
       );
       // ─────────────────────────────────────────────────────────────────────
@@ -783,6 +895,17 @@ export const receiveWebhook = async (req, res) => {
       }
 
       if (textBody) {
+        // Intercept Web Gallery Inquiry template
+        const galleryInquiry = parseGalleryInquiry(textBody);
+        if (galleryInquiry) {
+          await handleGalleryInquiry(from, message.id, galleryInquiry);
+          if (logDoc) {
+            logDoc.processed = true;
+            await logDoc.save();
+          }
+          return;
+        }
+
         // Look up conversation state
         let state = await ConversationState.findOne({ phone: from });
         
