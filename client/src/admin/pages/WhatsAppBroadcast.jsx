@@ -26,6 +26,24 @@ export default function WhatsAppBroadcast() {
   // Progress tracker
   const [progress, setProgress] = useState(null); // { current, total, success, failure }
 
+  // Campaign History
+  const [campaignHistory, setCampaignHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const fetchCampaignHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const { data } = await api.get("/admin/crm/campaigns");
+      if (data.success) {
+        setCampaignHistory(data.data || []);
+      }
+    } catch (err) {
+      console.warn("Failed to load campaign history:", err.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -43,6 +61,8 @@ export default function WhatsAppBroadcast() {
         if (projRes.data?.success && projRes.data?.data) {
           setProjects(projRes.data.data);
         }
+
+        await fetchCampaignHistory();
       } catch (err) {
         toast.error("Failed to load campaign audience and projects.");
       } finally {
@@ -175,6 +195,7 @@ export default function WhatsAppBroadcast() {
           success: data.data.successCount,
           failure: data.data.failureCount
         });
+        fetchCampaignHistory();
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to broadcast campaign");
@@ -526,6 +547,87 @@ export default function WhatsAppBroadcast() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Campaign History Log Panel */}
+      <div className="bg-white rounded-2xl border border-amber-100 shadow-sm p-6 space-y-4">
+        <div className="flex items-center gap-2 border-b border-amber-50/50 pb-3">
+          <FiFileText className="text-[#F5A623] w-5 h-5" />
+          <h2 className="text-sm font-extrabold text-[#2E2A26] uppercase tracking-wider">Campaign Dispatch Log</h2>
+        </div>
+
+        {historyLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader size="sm" />
+            <span className="text-[11px] text-gray-500 font-bold ml-2">Loading History...</span>
+          </div>
+        ) : campaignHistory.length === 0 ? (
+          <p className="text-center text-xs text-gray-400 font-semibold py-8">No marketing campaigns broadcasted yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[11px]">
+              <thead className="bg-[#FFFBF5] text-[#6B625A] font-extrabold uppercase border-b border-gray-100">
+                <tr>
+                  <th className="p-3">Dispatch Date</th>
+                  <th className="p-3">Campaign Type / Mode</th>
+                  <th className="p-3">Message Preview</th>
+                  <th className="p-3 text-center">Audience Count</th>
+                  <th className="p-3 text-center">Delivery Success</th>
+                  <th className="p-3">Dispatched By</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 text-gray-700 font-semibold">
+                {campaignHistory.map((item) => {
+                  const pct = item.targetCount > 0 ? Math.round((item.successCount / item.targetCount) * 100) : 0;
+                  
+                  return (
+                    <tr key={item._id} className="hover:bg-amber-50/10">
+                      <td className="p-3 text-gray-900 font-bold">
+                        {new Date(item.sentAt || item.createdAt).toLocaleDateString("en-IN")} {" "}
+                        <span className="text-[9px] text-gray-400 font-normal">
+                          {new Date(item.sentAt || item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-600 uppercase tracking-wider">
+                          {item.campaignName || "Broadcast"}
+                        </span>
+                        <span className="block text-[9px] text-gray-400 font-normal mt-0.5">
+                          Type: {item.messageType || "Text"}
+                        </span>
+                      </td>
+                      <td className="p-3 max-w-[250px] truncate" title={item.messagePreview}>
+                        {item.messagePreview || "N/A"}
+                      </td>
+                      <td className="p-3 text-center font-bold text-gray-900">
+                        {item.targetCount} leads
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-col items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                            pct >= 90 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                          }`}>
+                            {item.successCount} of {item.targetCount} ({pct}%)
+                          </span>
+                          {/* Mini Progress Bar */}
+                          <div className="w-20 bg-gray-200 rounded-full h-1 overflow-hidden">
+                            <div 
+                              className="bg-green-500 h-1 transition-all duration-300"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3 text-gray-500 font-bold">
+                        {item.sentBy || "System Bot"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

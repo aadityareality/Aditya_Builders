@@ -15,6 +15,8 @@ import {
   FiCalendar,
   FiBarChart2,
   FiSend,
+  FiCpu,
+  FiBookOpen,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import logoImg from "../assets/logo.jpg";
@@ -85,6 +87,16 @@ export default function AdminLayout() {
       name: "WhatsApp Campaigns",
       path: `${ADMIN_SLUG}/broadcast`,
       icon: <FiSend className="w-4 h-4" />,
+    },
+    {
+      name: "AI Insights",
+      path: `${ADMIN_SLUG}/ai-dashboard`,
+      icon: <FiCpu className="w-4 h-4" />,
+    },
+    {
+      name: "AI FAQs Grounding",
+      path: `${ADMIN_SLUG}/ai-faqs`,
+      icon: <FiBookOpen className="w-4 h-4" />,
     },
     {
       name: "Projects Catalog",

@@ -168,6 +168,25 @@ export default function WhatsAppCRM() {
   const messagesEndRef = useRef(null);
   const typingTimer = useRef(null);
 
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [fetchingAiSuggestion, setFetchingAiSuggestion] = useState(false);
+
+  const fetchAiSuggestion = useCallback(async (chatId) => {
+    if (!chatId) return;
+    try {
+      setAiSuggestion("");
+      setFetchingAiSuggestion(true);
+      const { data } = await api.get(`/admin/ai/smart-reply?chatId=${chatId}`);
+      if (data.success && data.data?.suggestedReply) {
+        setAiSuggestion(data.data.suggestedReply);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch smart reply suggestion:", err.message);
+    } finally {
+      setFetchingAiSuggestion(false);
+    }
+  }, []);
+
   // ── Socket.IO real-time handlers ───────────────────────────────────────────
   const { emitTyping, isConnected } = useSocket({
     onMessageNew: (data) => {
@@ -187,6 +206,9 @@ export default function WhatsAppCRM() {
 
       if (selectedChat?.toString() === data.chatId?.toString()) {
         setMessages(prev => [...prev, data.message]);
+        if (data.message.direction === "incoming") {
+          fetchAiSuggestion(data.chatId);
+        }
       }
     },
     onMessageStatus: ({ chatId, messageId, status }) => {
@@ -270,6 +292,7 @@ export default function WhatsAppCRM() {
     setSelectedCustomer(conv.customer);
     setMsgLoading(true);
     setMessages([]);
+    fetchAiSuggestion(conv.chatId);
     try {
       const { data } = await api.get(`/admin/crm/conversations/${conv.chatId}/messages`);
       if (data.success) {
@@ -307,6 +330,7 @@ export default function WhatsAppCRM() {
       });
       if (data.success) {
         setMessages(prev => [...prev, data.data]);
+        setAiSuggestion("");
       }
     } catch (err) {
       console.error("Reply failed:", err);
@@ -579,6 +603,27 @@ export default function WhatsAppCRM() {
               )}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* AI Smart Reply Widget */}
+            {fetchingAiSuggestion && (
+              <div className="bg-amber-50/20 border-t border-amber-100/30 px-4 py-2 flex items-center justify-between text-[10px] text-amber-600 font-bold italic select-none">
+                AI Sales Assistant drafting a reply...
+              </div>
+            )}
+            {aiSuggestion && (
+              <div className="bg-[#FFFBF5] border-t border-amber-100/40 px-4 py-2.5 flex items-center justify-between gap-4 select-none">
+                <div className="flex-1 min-w-0">
+                  <span className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest block mb-0.5">AI Smart Reply Suggestion</span>
+                  <p className="text-xs text-gray-700 italic truncate font-medium">"{aiSuggestion}"</p>
+                </div>
+                <button
+                  onClick={() => { setReplyText(aiSuggestion); setAiSuggestion(""); }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px] px-3.5 py-1.5 rounded-xl shrink-0 transition shadow-sm"
+                >
+                  Use Draft
+                </button>
+              </div>
+            )}
 
             {/* Reply Box */}
             <div className="border-t border-gray-100 bg-white p-3 flex items-end gap-2">

@@ -412,6 +412,16 @@ export const sendAdminInquiryAlert = async (inquiry) => {
   return sendTextMessage(formattedAdminPhone, adminText);
 };
 
+export const sendAdminSentimentAlert = async (customerName, customerPhone, messageText) => {
+  const adminText = 
+    `⚠️ *ATTENTION: Negative Sentiment Detected* ⚠️\n\n` +
+    `Customer *${customerName}* (${customerPhone}) has sent a message with high frustration or negative sentiment. A human sales agent should step in immediately.\n\n` +
+    `*Customer Message:* "${messageText}"`;
+  
+  const formattedAdminPhone = formatPhoneNumber(whatsappConfig.adminPhoneNumber);
+  return sendTextMessage(formattedAdminPhone, adminText);
+};
+
 const whatsappService = {
   sendMetaMessage,
   sendTextMessage,
@@ -426,6 +436,7 @@ const whatsappService = {
   formatPhoneNumber,
   sendCustomerInquiryConfirmation,
   sendAdminInquiryAlert,
+  sendAdminSentimentAlert,
   markMessageAsRead,
 };
 

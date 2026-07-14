@@ -3,6 +3,11 @@ import Appointment from "../../models/Appointment.js";
 import ReminderLog from "../../models/ReminderLog.js";
 import Customer from "../../models/Customer.js";
 import whatsappService from "./whatsappService.js";
+import AiSummary from "../../models/AiSummary.js";
+import ConversationMemory from "../../models/ConversationMemory.js";
+import Message from "../../models/Message.js";
+import Chat from "../../models/Chat.js";
+import { generateCompletion } from "./openAiService.js";
 
 /**
  * Utility to parse preferredDate and preferredTime into a single JS Date object
@@ -211,12 +216,116 @@ export const checkAndSendFollowUps = async () => {
 };
 
 /**
+ * Scans for conversations that went quiet (>30 mins) and generates AI summaries
+ */
+export const generateInactivitySummaries = async () => {
+  console.log("[AI Summary Service] Checking for inactive conversations to summarize...");
+  try {
+    const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const customers = await Customer.find({
+      lastActiveAt: { $lt: thirtyMinsAgo, $gt: oneDayAgo }
+    });
+
+    for (const customer of customers) {
+      const existingSummary = await AiSummary.findOne({
+        customer: customer._id,
+        createdAt: { $gt: customer.lastActiveAt }
+      });
+
+      if (existingSummary) continue;
+
+      const chat = await Chat.findOne({ customer: customer._id });
+      if (!chat) continue;
+
+      const messages = await Message.find({ chat: chat._id })
+        .sort({ timestamp: 1 })
+        .limit(20);
+
+      if (messages.length === 0) continue;
+
+      console.log(`📝 [AI Summary] Summarizing conversation for customer: ${customer.phone}`);
+
+      const systemPrompt = `You are a CRM coordinator assistant for Aaditya Builders.
+Analyze the provided chat history between our agent/AI bot and the customer.
+Summarize the conversation into a JSON object with:
+- "budgetMentioned": string (the client's budget if mentioned, e.g. "80 Lakhs", "1.5 Crore", otherwise empty string)
+- "interestedProjects": array of strings (names of projects the customer asked about, e.g. ["Aaditya Skyline"])
+- "questionsAsked": array of strings (top 2-3 questions they asked, e.g. ["RERA number?", "possession date?"])
+- "appointmentBooked": boolean (true if they confirmed a site visit appointment in the text)
+- "suggestedNextAction": string (a short next step for the sales representative, e.g. "Call client to follow up on 3BHK pricing")
+- "summaryText": string (a 2-sentence conversational summary of the interaction)
+
+JSON format:
+{
+  "budgetMentioned": "",
+  "interestedProjects": [],
+  "questionsAsked": [],
+  "appointmentBooked": false,
+  "suggestedNextAction": "",
+  "summaryText": ""
+}`;
+
+      const conversationText = messages.map(m => `${m.direction}: ${typeof m.body === 'string' ? m.body : JSON.stringify(m.body)}`).join("\n");
+
+      const aiResult = await generateCompletion(customer.phone, systemPrompt, conversationText, customer._id);
+      
+      let parsed = {};
+      try {
+        parsed = JSON.parse(aiResult.text);
+      } catch {
+        const jsonMatch = aiResult.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try { parsed = JSON.parse(jsonMatch[0]); } catch {}
+        }
+      }
+
+      if (parsed.summaryText) {
+        const resolvedProjectIds = [];
+        if (parsed.interestedProjects && parsed.interestedProjects.length > 0) {
+          for (const projTitle of parsed.interestedProjects) {
+            const proj = await mongoose.model("Project").findOne({ 
+              title: { $regex: projTitle, $options: "i" },
+              isActive: true
+            });
+            if (proj) resolvedProjectIds.push(proj._id);
+          }
+        }
+
+        await AiSummary.create({
+          customer: customer._id,
+          budgetMentioned: parsed.budgetMentioned || "",
+          interestedProjects: resolvedProjectIds,
+          leadScore: customer.leadScore,
+          questionsAsked: parsed.questionsAsked || [],
+          appointmentBooked: parsed.appointmentBooked || false,
+          suggestedNextAction: parsed.suggestedNextAction || "Call customer",
+          summaryText: parsed.summaryText
+        });
+
+        let memory = await ConversationMemory.findOne({ customer: customer._id });
+        if (memory) {
+          memory.lastSummary = parsed.summaryText;
+          await memory.save();
+        }
+
+        console.log(`✅ [AI Summary] Saved summary for customer ${customer.phone}`);
+      }
+    }
+  } catch (err) {
+    console.error("❌ generateInactivitySummaries Error:", err.message);
+  }
+};
+
+/**
  * Initialize consolidated node-cron tasks (Interval: every 15 minutes)
  */
 export const initReminderCron = () => {
   cron.schedule("*/15 * * * *", async () => {
     await checkAndSendReminders();
     await checkAndSendFollowUps();
+    await generateInactivitySummaries();
   });
   console.log("⏰ Consolidated node-cron reminders & smart follow-ups task registered (Interval: 15 mins).");
 };
@@ -225,5 +334,6 @@ export default {
   getAppointmentDateTime,
   checkAndSendReminders,
   checkAndSendFollowUps,
+  generateInactivitySummaries,
   initReminderCron,
 };

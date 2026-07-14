@@ -1,5 +1,6 @@
 import Chat from "../models/Chat.js";
 import Customer from "../models/Customer.js";
+import Campaign from "../models/Campaign.js";
 import Message from "../models/Message.js";
 import MessageStatus from "../models/MessageStatus.js";
 import Admin from "../models/Admin.js";
@@ -765,7 +766,7 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
  * Send promotional WhatsApp message to multiple selected customers
  */
 export const sendCrmBroadcast = catchAsync(async (req, res) => {
-  const { customerIds, messageType, body } = req.body;
+  const { customerIds, messageType, body, campaignName } = req.body;
 
   if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
     return res.status(400).json({ success: false, message: "customerIds array is required" });
@@ -780,6 +781,17 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
     return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to send campaigns" });
   }
 
+  const name = campaignName || `Campaign ${new Date().toISOString().split("T")[0]}`;
+  const campaign = await Campaign.create({
+    name,
+    messageType,
+    body,
+    targetCount: customerIds.length,
+    successCount: 0,
+    failureCount: 0,
+    sentBy: req.admin._id
+  });
+
   let successCount = 0;
   let failureCount = 0;
   const errors = [];
@@ -788,7 +800,6 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
     try {
       let customer = await Customer.findById(customerId);
       if (!customer) {
-        // If not found in Customer, check ContactInquiry or CallbackRequest and upsert!
         const tempInq = await ContactInquiry.findById(customerId);
         const tempCb = tempInq ? null : await CallbackRequest.findById(customerId);
         
@@ -813,11 +824,9 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
         continue;
       }
 
-      // Format number
       const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
       let metaResponse = null;
 
-      // Send via WhatsApp Service
       if (messageType === "text") {
         metaResponse = await whatsappService.sendTextMessage(formattedPhone, body);
       } else if (messageType === "image") {
@@ -836,13 +845,11 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
 
       const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
 
-      // Upsert Chat thread for logs
       let chat = await Chat.findOne({ customer: customer._id });
       if (!chat) {
         chat = await Chat.create({ customer: customer._id, status: "Open" });
       }
 
-      // Save Outgoing Message logs
       let savedBody = body;
       if (messageType !== "text" && body && typeof body === "object") {
         savedBody = {
@@ -863,13 +870,11 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
         timestamp: new Date()
       });
 
-      // Update customer preview details
       customer.lastMessage = messageType === "text" ? body : `[Promotional ${messageType}]`;
       customer.lastMessageAt = new Date();
       customer.lastActiveAt = new Date();
       await customer.save();
 
-      // Emit new message update to active dashboard sessions
       const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
       emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
 
@@ -880,6 +885,11 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
       errors.push(`Customer ${customerId} error: ${err.message}`);
     }
   }
+
+  // Update campaign metrics
+  campaign.successCount = successCount;
+  campaign.failureCount = failureCount;
+  await campaign.save();
 
   res.status(200).json({
     success: true,
@@ -967,5 +977,20 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
   res.status(200).json({
     success: true,
     data: Array.from(uniqueAudience.values())
+  });
+});
+
+/**
+ * GET /api/admin/crm/campaigns
+ * Fetch previous WhatsApp campaigns history
+ */
+export const getCampaignHistory = catchAsync(async (req, res) => {
+  const campaigns = await Campaign.find({})
+    .populate("sentBy", "name email")
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    data: campaigns
   });
 });

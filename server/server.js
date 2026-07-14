@@ -27,6 +27,7 @@ import adminUserRoutes from "./routes/adminUserRoutes.js";
 import adminUploadRoutes from "./routes/adminUploadRoutes.js";
 import adminAppointmentRoutes from "./routes/adminAppointmentRoutes.js";
 import adminCrmRoutes from "./routes/adminCrmRoutes.js";
+import adminAiRoutes from "./routes/adminAiRoutes.js";
 import http from "http";
 import { initSocket } from "./src/services/socketService.js";
 
@@ -191,6 +192,7 @@ app.use("/api/admin/upload", adminUploadRoutes);
 app.use("/api/admin/callback-requests", adminCallbackRoutes);
 app.use("/api/admin/appointments", adminAppointmentRoutes);
 app.use("/api/admin/crm", adminCrmRoutes);
+app.use("/api/admin/ai", adminAiRoutes);
 
 // ── Public APIs ───────────────────────────────────────────────────────────────
 app.use("/api/projects", publicProjectRoutes);
