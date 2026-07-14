@@ -55,6 +55,10 @@ export function useSocket({
           token: localStorage.getItem("admin_token") || "",
         },
       });
+    } else {
+      if (globalSocket.auth) {
+        globalSocket.auth.token = localStorage.getItem("admin_token") || "";
+      }
     }
 
     socketRef.current = globalSocket;
