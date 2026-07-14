@@ -441,7 +441,9 @@ export default function WhatsAppCRM() {
     <div className="flex h-[calc(100vh-8rem)] bg-white rounded-2xl overflow-hidden shadow-xl border border-gray-100">
 
       {/* ── LEFT: Conversation List ─────────────────────────────────────── */}
-      <aside className="w-80 shrink-0 border-r border-gray-100 flex flex-col bg-[#F7F8FA]">
+      <aside className={`w-full md:w-80 shrink-0 border-r border-gray-100 flex flex-col bg-[#F7F8FA] ${
+        selectedChat ? "hidden md:flex" : "flex"
+      }`}>
         {/* Header */}
         <div className="p-4 border-b border-gray-100 bg-white">
           <div className="flex items-center justify-between mb-3">
@@ -549,7 +551,9 @@ export default function WhatsAppCRM() {
       </aside>
 
       {/* ── CENTER: Chat Window ─────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={`flex-1 flex flex-col min-w-0 ${
+        selectedChat ? "flex" : "hidden md:flex"
+      }`}>
         {!selectedChat ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
             <FaWhatsapp className="text-6xl text-[#25D366]/30 mb-4" />
@@ -560,6 +564,14 @@ export default function WhatsAppCRM() {
             {/* Chat Header */}
             <div className="h-14 border-b border-gray-100 bg-white flex items-center justify-between px-4 shrink-0">
               <div className="flex items-center gap-3">
+                {/* Mobile Back Button */}
+                <button
+                  onClick={() => { setSelectedChat(null); setSelectedCustomer(null); }}
+                  className="p-1 text-gray-500 hover:text-gray-800 md:hidden mr-1 focus:outline-none"
+                  aria-label="Back to conversations"
+                >
+                  <FiChevronDown className="w-5 h-5 rotate-90" />
+                </button>
                 <div className="relative">
                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#25D366] to-emerald-700 flex items-center justify-center text-white text-xs font-bold">
                     {selectedCustomer?.name?.[0]?.toUpperCase() || "?"}
@@ -653,7 +665,7 @@ export default function WhatsAppCRM() {
 
       {/* ── RIGHT: Customer Details Panel ──────────────────────────────── */}
       {selectedCustomer && (
-        <aside className="w-72 shrink-0 border-l border-gray-100 bg-white flex flex-col overflow-y-auto">
+        <aside className="hidden lg:flex w-72 shrink-0 border-l border-gray-100 bg-white flex flex-col overflow-y-auto">
           <div className="p-4 border-b border-gray-100">
             <div className="flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#25D366] to-emerald-700 flex items-center justify-center text-white text-xl font-bold mb-2">

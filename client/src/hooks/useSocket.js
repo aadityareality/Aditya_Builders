@@ -25,11 +25,12 @@ export function useSocket({
 
   const handleNewMessage = useCallback((data) => {
     // Browser notification if page not focused
-    if (document.visibilityState !== "visible" && Notification.permission === "granted") {
+    const hasNotifications = typeof window !== "undefined" && "Notification" in window;
+    if (document.visibilityState !== "visible" && hasNotifications && window.Notification.permission === "granted") {
       const preview = typeof data.message?.body === "string"
         ? data.message.body.substring(0, 60)
         : "[Media message]";
-      new Notification(`💬 ${data.customer?.name || "Customer"}`, {
+      new window.Notification(`💬 ${data.customer?.name || "Customer"}`, {
         body: preview,
         icon: "/favicon.ico",
       });
@@ -39,8 +40,9 @@ export function useSocket({
 
   useEffect(() => {
     // Request browser notification permission
-    if (Notification.permission === "default") {
-      Notification.requestPermission();
+    const hasNotifications = typeof window !== "undefined" && "Notification" in window;
+    if (hasNotifications && window.Notification.permission === "default") {
+      window.Notification.requestPermission();
     }
 
     // Reuse existing socket if already connected
