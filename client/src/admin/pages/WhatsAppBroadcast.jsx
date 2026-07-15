@@ -30,6 +30,14 @@ export default function WhatsAppBroadcast() {
   const [campaignHistory, setCampaignHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Add Customer Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerCity, setNewCustomerCity] = useState("");
+  const [newCustomerState, setNewCustomerState] = useState("");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+
   const fetchCampaignHistory = async () => {
     try {
       setHistoryLoading(true);
@@ -41,6 +49,53 @@ export default function WhatsAppBroadcast() {
       console.warn("Failed to load campaign history:", err.message);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchAudience = async () => {
+    try {
+      const { data } = await api.get("/admin/crm/broadcast/audience");
+      if (data?.success && data?.data) {
+        setCustomers(data.data);
+      }
+    } catch (err) {
+      toast.error("Failed to refresh target audience.");
+    }
+  };
+
+  const handleAddCustomer = async (e) => {
+    e.preventDefault();
+    if (!newCustomerName.trim()) {
+      toast.error("Please enter a customer name.");
+      return;
+    }
+    if (!newCustomerPhone.trim()) {
+      toast.error("Please enter a phone number.");
+      return;
+    }
+
+    setCreatingCustomer(true);
+    try {
+      const { data } = await api.post("/admin/crm/customers", {
+        name: newCustomerName,
+        phone: newCustomerPhone,
+        city: newCustomerCity,
+        state: newCustomerState
+      });
+
+      if (data.success) {
+        toast.success("Customer added successfully!");
+        setNewCustomerName("");
+        setNewCustomerPhone("");
+        setNewCustomerCity("");
+        setNewCustomerState("");
+        setIsAddModalOpen(false);
+        await fetchAudience();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to add customer.");
+    } finally {
+      setCreatingCustomer(false);
     }
   };
 
@@ -230,9 +285,18 @@ export default function WhatsAppBroadcast() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Area: Filters & Audience Selector Table */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden p-6 space-y-4">
-          <div className="flex items-center gap-2 border-b border-amber-50/50 pb-3">
-            <FiUsers className="text-[#F5A623] w-5 h-5" />
-            <h2 className="text-sm font-extrabold text-[#2E2A26] uppercase tracking-wider">Select Target Audience</h2>
+          <div className="flex items-center justify-between border-b border-amber-50/50 pb-3">
+            <div className="flex items-center gap-2">
+              <FiUsers className="text-[#F5A623] w-5 h-5" />
+              <h2 className="text-sm font-extrabold text-[#2E2A26] uppercase tracking-wider">Select Target Audience</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(true)}
+              className="px-3 py-1.5 bg-[#F5A623] hover:bg-[#E8871E] text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+            >
+              + Add Customer
+            </button>
           </div>
 
           {/* Filtering row */}
@@ -629,6 +693,111 @@ export default function WhatsAppBroadcast() {
           </div>
         )}
       </div>
+
+      {/* Add Customer Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-[#2E2A26]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-amber-100 shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 text-left">
+            {/* Header */}
+            <div className="bg-[#FFFBF5] px-6 py-4 border-b border-amber-100 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <FiUsers className="text-[#F5A623] w-5 h-5" />
+                <h3 className="font-extrabold text-[#2E2A26] text-sm uppercase tracking-wider">Add New Customer</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(false)}
+                className="text-[#6B625A] hover:text-red-500 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddCustomer} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider block">
+                  Customer Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newCustomerName}
+                  onChange={(e) => setNewCustomerName(e.target.value)}
+                  placeholder="Enter customer name..."
+                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider block">
+                  Phone Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newCustomerPhone}
+                  onChange={(e) => setNewCustomerPhone(e.target.value)}
+                  placeholder="Enter phone number..."
+                  className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider block">
+                    City (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomerCity}
+                    onChange={(e) => setNewCustomerCity(e.target.value)}
+                    placeholder="e.g. Ahmedabad"
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold uppercase text-[#6B625A] tracking-wider block">
+                    State (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={newCustomerState}
+                    onChange={(e) => setNewCustomerState(e.target.value)}
+                    placeholder="e.g. Gujarat"
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingCustomer}
+                  className="flex-1 bg-[#F5A623] hover:bg-[#E8871E] text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:shadow-none"
+                >
+                  {creatingCustomer ? (
+                    <>
+                      <Loader size="xs" /> Saving...
+                    </>
+                  ) : (
+                    "Save Customer"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

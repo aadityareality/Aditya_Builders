@@ -350,6 +350,55 @@ export const updateCustomer = catchAsync(async (req, res) => {
 });
 
 /**
+ * POST /api/admin/crm/customers
+ * Create a new Customer profile manually
+ */
+export const createCustomer = catchAsync(async (req, res) => {
+  const { name, phone, city, state } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, message: "Customer name is required" });
+  }
+
+  if (!phone || !phone.trim()) {
+    return res.status(400).json({ success: false, message: "Customer phone is required" });
+  }
+
+  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  if (!cleanPhone) {
+    return res.status(400).json({ success: false, message: "Invalid phone number format" });
+  }
+
+  // Check if customer already exists with this phone
+  const existingCustomer = await Customer.findOne({ phone: cleanPhone });
+  if (existingCustomer) {
+    return res.status(400).json({
+      success: false,
+      message: `A customer with phone number ${phone} already exists.`
+    });
+  }
+
+  const customer = await Customer.create({
+    name: name.trim(),
+    phone: cleanPhone,
+    city: city ? city.trim() : "",
+    state: state ? state.trim() : "",
+    source: "Manual Add",
+    leadStatus: "New",
+    stage: "New"
+  });
+
+  // Create a default chat thread for this customer so they are fully available in CRM list
+  await Chat.create({ customer: customer._id, status: "Open" });
+
+  res.status(201).json({
+    success: true,
+    message: "Customer created successfully",
+    data: customer
+  });
+});
+
+/**
  * POST /api/admin/crm/customers/:id/notes
  * Add internal admin note to Customer record
  */
