@@ -92,7 +92,7 @@ export const sendTextMessage = async (to, text) => {
     console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing via template...`);
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
-        type: "body",
+        type: "BODY",
         parameters: [
           { type: "text", text: text }
         ]
@@ -118,7 +118,7 @@ export const sendTextMessage = async (to, text) => {
       console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying with template fallback...`);
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
-          type: "body",
+          type: "BODY",
           parameters: [
             { type: "text", text: text }
           ]
@@ -180,7 +180,7 @@ export const sendImage = async (to, imageUrl, caption = "") => {
     const textFallback = `${caption ? caption + "\n\n" : ""}Image Link: ${imageUrl}`;
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
-        type: "body",
+        type: "BODY",
         parameters: [
           { type: "text", text: textFallback }
         ]
@@ -206,7 +206,7 @@ export const sendImage = async (to, imageUrl, caption = "") => {
       const textFallback = `${caption ? caption + "\n\n" : ""}Image Link: ${imageUrl}`;
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
-          type: "body",
+          type: "BODY",
           parameters: [
             { type: "text", text: textFallback }
           ]
@@ -233,7 +233,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
     const textFallback = `Document "${filename}"${caption ? ": " + caption : ""}\nLink: ${documentUrl}`;
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
-        type: "body",
+        type: "BODY",
         parameters: [
           { type: "text", text: textFallback }
         ]
@@ -260,7 +260,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""}\nLink: ${documentUrl}`;
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
-          type: "body",
+          type: "BODY",
           parameters: [
             { type: "text", text: textFallback }
           ]
@@ -456,7 +456,7 @@ export const sendCustomerInquiryConfirmation = async (customerPhone, customerNam
 
   const components = [
     {
-      type: "body",
+      type: "BODY",
       parameters: [
         {
           type: "text",

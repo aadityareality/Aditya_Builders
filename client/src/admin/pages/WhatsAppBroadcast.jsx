@@ -285,7 +285,7 @@ export default function WhatsAppBroadcast() {
           languageCode: "en",
           components: [
             {
-              type: "body",
+              type: "BODY",
               parameters: [
                 { type: "text", text: messageBody }
               ]

@@ -166,7 +166,7 @@ export const checkAndSendFollowUps = async () => {
         try {
           await whatsappService.sendTemplateMessage(cust.phone, "followup_7day", "en", [
             {
-              type: "body",
+              type: "BODY",
               parameters: [{ type: "text", text: cust.name }]
             }
           ]);
@@ -185,7 +185,7 @@ export const checkAndSendFollowUps = async () => {
         try {
           await whatsappService.sendTemplateMessage(cust.phone, "followup_3day", "en", [
             {
-              type: "body",
+              type: "BODY",
               parameters: [{ type: "text", text: cust.name }]
             }
           ]);
