@@ -69,6 +69,10 @@ const run = async () => {
     await fn(req, res, (err) => {
       if (err) console.error("Express next() called with error:", err);
     });
+    if (req.campaignPromise) {
+      console.log("⏳ Awaiting background campaign process...");
+      await req.campaignPromise;
+    }
   } catch (err) {
     console.error("Caught error during execute:", err);
   }
@@ -76,7 +80,7 @@ const run = async () => {
   console.log("Response Code:", res.statusCode);
   console.log("Response Body:", JSON.stringify(res.jsonData, null, 2));
 
-  if (res.statusCode === 200 && res.jsonData && res.jsonData.success) {
+  if ((res.statusCode === 200 || res.statusCode === 202) && res.jsonData && res.jsonData.success) {
     console.log("✅ Campaign broadcast test passed successfully!");
     
     // Verify Chat and Message were created

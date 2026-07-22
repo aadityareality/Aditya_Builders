@@ -19,6 +19,7 @@ export function useSocket({
   onCustomerUpdated,
   onTyping,
   onTestEvent,
+  onCampaignProgress,
 } = {}) {
   const socketRef = useRef(null);
   const reconnectTimer = useRef(null);
@@ -88,6 +89,7 @@ export function useSocket({
     socket.on("chat_deleted", onChatDeleted || (() => {}));
     socket.on("customer_updated", onCustomerUpdated || (() => {}));
     socket.on("typing", onTyping || (() => {}));
+    socket.on("campaign_progress", onCampaignProgress || (() => {}));
     socket.on("test_event", onTestEvent || ((d) => console.log("🧪 Test Socket Event:", d)));
 
     return () => {
@@ -98,9 +100,10 @@ export function useSocket({
       socket.off("chat_deleted");
       socket.off("customer_updated");
       socket.off("typing");
+      socket.off("campaign_progress");
       socket.off("test_event");
     };
-  }, [handleNewMessage, onMessageStatus, onMessagesRead, onChatStatusChanged, onChatDeleted, onCustomerUpdated, onTyping, onTestEvent]);
+  }, [handleNewMessage, onMessageStatus, onMessagesRead, onChatStatusChanged, onChatDeleted, onCustomerUpdated, onTyping, onTestEvent, onCampaignProgress]);
 
   /**
    * Emit typing indicator to other admins viewing the same chat

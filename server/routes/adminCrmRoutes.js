@@ -9,6 +9,8 @@ import {
   createCustomer,
   addCustomerNote,
   updateCustomerTags,
+  deleteCustomer,
+  bulkDeleteAudience,
   updateChatStatus,
   deleteChatThread,
   deleteMessage,
@@ -47,6 +49,8 @@ router.get("/campaigns", getCampaignHistory);
 // ── Customer Routes ───────────────────────────────────────────────────────────
 router.post("/customers", createCustomer);
 router.patch("/customers/:id", updateCustomer);
+router.delete("/customers/:id", deleteCustomer);
+router.post("/customers/bulk-delete", bulkDeleteAudience);
 router.post("/customers/:id/notes", addCustomerNote);
 router.put("/customers/:id/tags", updateCustomerTags);
 

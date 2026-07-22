@@ -43,6 +43,15 @@ const campaignSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    status: {
+      type: String,
+      enum: ["Pending", "Processing", "Completed", "Failed"],
+      default: "Pending",
+    },
+    messagePreview: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import api from "../../hooks/api.js";
 import toast from "react-hot-toast";
 import { FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers, FiUpload, FiX } from "react-icons/fi";
 import Loader from "../../components/ui/Loader.jsx";
+import { useSocket } from "../../hooks/useSocket.js";
 
 export default function WhatsAppBroadcast() {
   const [customers, setCustomers] = useState([]);
@@ -25,6 +26,32 @@ export default function WhatsAppBroadcast() {
   
   // Progress tracker
   const [progress, setProgress] = useState(null); // { current, total, success, failure }
+  const [activeCampaignId, setActiveCampaignId] = useState(null);
+  const [campaignStatus, setCampaignStatus] = useState("");
+  const activeCampaignIdRef = useRef(null);
+
+  useSocket({
+    onCampaignProgress: (progressData) => {
+      console.log("📢 Campaign progress received:", progressData);
+      if (progressData && progressData.campaignId === activeCampaignIdRef.current) {
+        setCampaignStatus(progressData.status);
+        setProgress({
+          current: progressData.current,
+          total: progressData.targetCount,
+          success: progressData.successCount,
+          failure: progressData.failureCount
+        });
+
+        if (progressData.status === "Completed" || progressData.status === "Failed") {
+          toast.success(`Campaign finished with status: ${progressData.status}!`);
+          setSending(false);
+          activeCampaignIdRef.current = null;
+          setActiveCampaignId(null);
+          fetchCampaignHistory();
+        }
+      }
+    }
+  });
 
   // Campaign History
   const [campaignHistory, setCampaignHistory] = useState([]);
@@ -60,6 +87,36 @@ export default function WhatsAppBroadcast() {
       }
     } catch (err) {
       toast.error("Failed to refresh target audience.");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!window.confirm(`Permanently delete the ${selectedIds.length} selected contacts and all their chats/messages? This action cannot be undone.`)) return;
+
+    try {
+      const itemsToDelete = selectedIds.map(id => {
+        const found = customers.find(c => c._id === id);
+        return {
+          id: id,
+          source: found ? found.source : "WhatsApp CRM"
+        };
+      });
+
+      const { data } = await api.post("/admin/crm/customers/bulk-delete", {
+        items: itemsToDelete
+      });
+
+      if (data.success) {
+        toast.success(data.message || "Selected contacts deleted successfully!");
+        setSelectedIds([]);
+        await fetchAudience();
+      } else {
+        toast.error("Failed to delete contacts");
+      }
+    } catch (err) {
+      console.error("Bulk delete failed:", err);
+      toast.error(err.response?.data?.message || "Failed to delete contacts");
     }
   };
 
@@ -213,6 +270,7 @@ export default function WhatsAppBroadcast() {
 
     setSending(true);
     setProgress({ current: 0, total: selectedIds.length, success: 0, failure: 0 });
+    setCampaignStatus("Processing");
 
     try {
       let bodyData = messageBody;
@@ -224,7 +282,7 @@ export default function WhatsAppBroadcast() {
       } else if (campaignType === "template") {
         bodyData = {
           templateName: "marketing_promotion", // standard example
-          languageCode: "en_US",
+          languageCode: "en",
           components: [
             {
               type: "body",
@@ -242,19 +300,18 @@ export default function WhatsAppBroadcast() {
         body: bodyData
       });
 
-      if (data.success) {
-        toast.success(`Campaign completed! Sent: ${data.data.successCount}, Failed: ${data.data.failureCount}`);
-        setProgress({
-          current: selectedIds.length,
-          total: selectedIds.length,
-          success: data.data.successCount,
-          failure: data.data.failureCount
-        });
+      if (data.success && data.data?.campaignId) {
+        const cId = data.data.campaignId;
+        activeCampaignIdRef.current = cId;
+        setActiveCampaignId(cId);
+        toast.success("Campaign broadcast started in background!");
         fetchCampaignHistory();
+      } else {
+        toast.error("Failed to start broadcast campaign");
+        setSending(false);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to broadcast campaign");
-    } finally {
       setSending(false);
     }
   };
@@ -354,18 +411,28 @@ export default function WhatsAppBroadcast() {
               Selected Contacts: {selectedIds.length} / {filteredCustomers.length} (Matches Filters)
             </span>
             {selectedIds.length > 0 && (
-              <button 
-                type="button"
-                onClick={() => setSelectedIds([])}
-                className="text-red-600 hover:text-red-700 underline text-[10px]"
-              >
-                Deselect All
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  className="text-red-600 hover:text-red-700 font-bold hover:underline text-[10px]"
+                >
+                  Delete Selected ({selectedIds.length})
+                </button>
+                <span className="text-gray-300 font-normal">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds([])}
+                  className="text-gray-500 hover:text-gray-700 underline text-[10px]"
+                >
+                  Deselect All
+                </button>
+              </div>
             )}
           </div>
 
           {/* Table list */}
-          <div className="overflow-x-auto border border-gray-100 rounded-xl max-h-96">
+          <div className="overflow-x-auto overflow-y-auto border border-gray-100 rounded-xl max-h-96">
             <table className="w-full text-left text-[11px]">
               <thead className="bg-[#FFFBF5] text-[#6B625A] font-extrabold uppercase border-b border-gray-100">
                 <tr>
@@ -600,11 +667,21 @@ export default function WhatsAppBroadcast() {
                 <span>Failed Logs:</span>
                 <span className="font-bold text-red-600">{progress.failure}</span>
               </div>
+              <div className="flex justify-between font-semibold text-gray-500">
+                <span>Current Status:</span>
+                <span className={`font-bold uppercase tracking-wider text-[10px] ${
+                  campaignStatus === "Processing" ? "text-amber-500 animate-pulse" : campaignStatus === "Completed" ? "text-green-600" : "text-red-600"
+                }`}>
+                  {campaignStatus || "Processing"}
+                </span>
+              </div>
 
               {/* Progress bar */}
               <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2 overflow-hidden">
                 <div 
-                  className="bg-green-500 h-1.5 transition-all duration-300"
+                  className={`h-1.5 transition-all duration-300 ${
+                    campaignStatus === "Processing" ? "bg-amber-400" : campaignStatus === "Failed" ? "bg-red-500" : "bg-green-500"
+                  }`}
                   style={{ width: `${(progress.current / progress.total) * 100}%` }}
                 ></div>
               </div>
@@ -633,10 +710,10 @@ export default function WhatsAppBroadcast() {
               <thead className="bg-[#FFFBF5] text-[#6B625A] font-extrabold uppercase border-b border-gray-100">
                 <tr>
                   <th className="p-3">Dispatch Date</th>
-                  <th className="p-3">Campaign Type / Mode</th>
+                  <th className="p-3">Campaign Name / Mode</th>
                   <th className="p-3">Message Preview</th>
                   <th className="p-3 text-center">Audience Count</th>
-                  <th className="p-3 text-center">Delivery Success</th>
+                  <th className="p-3 text-center">Status / Success</th>
                   <th className="p-3">Dispatched By</th>
                 </tr>
               </thead>
@@ -654,13 +731,13 @@ export default function WhatsAppBroadcast() {
                       </td>
                       <td className="p-3">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/10 text-amber-600 uppercase tracking-wider">
-                          {item.campaignName || "Broadcast"}
+                          {item.name || "Broadcast"}
                         </span>
                         <span className="block text-[9px] text-gray-400 font-normal mt-0.5">
                           Type: {item.messageType || "Text"}
                         </span>
                       </td>
-                      <td className="p-3 max-w-[250px] truncate" title={item.messagePreview}>
+                      <td className="p-3 max-w-[250px] truncate font-normal text-gray-500" title={item.messagePreview}>
                         {item.messagePreview || "N/A"}
                       </td>
                       <td className="p-3 text-center font-bold text-gray-900">
@@ -668,15 +745,26 @@ export default function WhatsAppBroadcast() {
                       </td>
                       <td className="p-3">
                         <div className="flex flex-col items-center gap-1">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
-                            pct >= 90 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
+                            item.status === "Completed"
+                              ? "bg-green-100 text-green-800"
+                              : item.status === "Processing"
+                              ? "bg-yellow-100 text-yellow-800 animate-pulse"
+                              : item.status === "Failed"
+                              ? "bg-red-100 text-red-800"
+                              : "bg-gray-100 text-gray-800"
                           }`}>
-                            {item.successCount} of {item.targetCount} ({pct}%)
+                            {item.status || "Completed"}
+                          </span>
+                          <span className="text-[10px] text-gray-500 font-semibold mt-0.5">
+                            {item.successCount} / {item.targetCount} ({pct}%)
                           </span>
                           {/* Mini Progress Bar */}
                           <div className="w-20 bg-gray-200 rounded-full h-1 overflow-hidden">
                             <div 
-                              className="bg-green-500 h-1 transition-all duration-300"
+                              className={`h-1 transition-all duration-300 ${
+                                item.status === "Processing" ? "bg-amber-400" : item.status === "Failed" ? "bg-red-500" : "bg-green-500"
+                              }`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>

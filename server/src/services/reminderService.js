@@ -164,7 +164,7 @@ export const checkAndSendFollowUps = async () => {
       if (inactiveMs >= sevenDaysMs && !cust.followUp7daySent) {
         console.log(`[Follow-up] Sending 7-day template follow-up to ${cust.name} (${cust.phone})`);
         try {
-          await whatsappService.sendTemplateMessage(cust.phone, "followup_7day", "en_US", [
+          await whatsappService.sendTemplateMessage(cust.phone, "followup_7day", "en", [
             {
               type: "body",
               parameters: [{ type: "text", text: cust.name }]
@@ -183,7 +183,7 @@ export const checkAndSendFollowUps = async () => {
       else if (inactiveMs >= threeDaysMs && !cust.followUp3daySent && !cust.followUp7daySent) {
         console.log(`[Follow-up] Sending 3-day template follow-up to ${cust.name} (${cust.phone})`);
         try {
-          await whatsappService.sendTemplateMessage(cust.phone, "followup_3day", "en_US", [
+          await whatsappService.sendTemplateMessage(cust.phone, "followup_3day", "en", [
             {
               type: "body",
               parameters: [{ type: "text", text: cust.name }]

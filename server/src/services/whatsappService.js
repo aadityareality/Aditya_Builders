@@ -1,6 +1,9 @@
 import axios from "axios";
 import whatsappConfig from "../config/whatsappConfig.js";
 import SiteSettings from "../../models/SiteSettings.js";
+import Chat from "../../models/Chat.js";
+import Customer from "../../models/Customer.js";
+import Message from "../../models/Message.js";
 
 /**
  * Helper to construct the API endpoint URL
@@ -19,6 +22,36 @@ const getHeaders = () => {
     Authorization: `Bearer ${whatsappConfig.accessToken}`,
     "Content-Type": "application/json",
   };
+};
+
+/**
+ * Check if the customer has interacted with us within the last 24 hours.
+ */
+export const checkActiveSession = async (toPhone) => {
+  try {
+    const cleanPhone = toPhone.replace(/[^0-9]/g, "");
+    if (!cleanPhone) return false;
+
+    // Look up customer by phone (handles suffix matching for the last 10 digits)
+    const customer = await Customer.findOne({
+      phone: { $regex: new RegExp(cleanPhone.slice(-10) + "$") }
+    });
+    if (!customer) return false;
+
+    const chat = await Chat.findOne({ customer: customer._id });
+    if (!chat) return false;
+
+    const lastIncoming = await Message.findOne({ chat: chat._id, direction: "incoming" })
+      .sort({ timestamp: -1 });
+
+    if (!lastIncoming) return false;
+
+    const diff = Date.now() - new Date(lastIncoming.timestamp).getTime();
+    return diff < 24 * 60 * 60 * 1000;
+  } catch (err) {
+    console.error("Error checking active session:", err);
+    return false;
+  }
 };
 
 /**
@@ -52,17 +85,48 @@ export const sendMetaMessage = async (payload) => {
  * @param {string} text - Message body
  */
 export const sendTextMessage = async (to, text) => {
+  const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing via template...`);
+    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: text }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "text",
     text: {
       preview_url: true,
       body: text,
     },
   };
-  return sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying with template fallback...`);
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: text }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -72,7 +136,7 @@ export const sendTextMessage = async (to, text) => {
  * @param {string} languageCode - Language code, e.g. 'en_US'
  * @param {Array} components - Array of components for parameter binding
  */
-export const sendTemplateMessage = async (to, templateName, languageCode = "en_US", components = []) => {
+export const sendTemplateMessage = async (to, templateName, languageCode = "en", components = []) => {
   const payload = {
     messaging_product: "whatsapp",
     to: to.replace(/[^0-9]/g, ""),
@@ -108,16 +172,49 @@ export const markMessageAsRead = async (messageId) => {
  * @param {string} [caption] - Text description below image
  */
 export const sendImage = async (to, imageUrl, caption = "") => {
+  const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing image via template...`);
+    const textFallback = `${caption ? caption + "\n\n" : ""}Image Link: ${imageUrl}`;
+    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: textFallback }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "image",
     image: {
       link: imageUrl,
       caption: caption,
     },
   };
-  return sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying image with template fallback...`);
+      const textFallback = `${caption ? caption + "\n\n" : ""}Image Link: ${imageUrl}`;
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: textFallback }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -128,9 +225,25 @@ export const sendImage = async (to, imageUrl, caption = "") => {
  * @param {string} [caption] - Text caption
  */
 export const sendDocument = async (to, documentUrl, filename, caption = "") => {
+  const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing document via template...`);
+    const textFallback = `Document "${filename}"${caption ? ": " + caption : ""}\nLink: ${documentUrl}`;
+    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: textFallback }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "document",
     document: {
       link: documentUrl,
@@ -138,7 +251,24 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
       caption: caption,
     },
   };
-  return sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying document with template fallback...`);
+      const textFallback = `Document "${filename}"${caption ? ": " + caption : ""}\nLink: ${documentUrl}`;
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: textFallback }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -340,7 +470,7 @@ export const sendCustomerInquiryConfirmation = async (customerPhone, customerNam
     },
   ];
 
-  return sendTemplateMessage(formattedPhone, "inquiry_confirmation", "en_US", components);
+  return sendTemplateMessage(formattedPhone, "inquiry_confirmation", "en", components);
 };
 
 export const sendAdminInquiryAlert = async (inquiry) => {

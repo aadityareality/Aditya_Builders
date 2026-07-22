@@ -414,6 +414,22 @@ export default function WhatsAppCRM() {
     } catch (err) { console.error("Delete failed:", err); }
   };
 
+  // ── Delete customer profile completely ──────────────────────────────────────
+  const deleteCustomerProfile = async () => {
+    if (!selectedCustomer) return;
+    if (!window.confirm(`Permanently delete customer "${selectedCustomer.name}" and all their chats/messages? This action cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/crm/customers/${selectedCustomer._id}`);
+      setSelectedChat(null);
+      setSelectedCustomer(null);
+      setMessages([]);
+      loadConversations();
+    } catch (err) {
+      console.error("Delete customer profile failed:", err);
+      alert(`Delete failed: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
   // ── Export chat ────────────────────────────────────────────────────────────
   const exportChat = (format) => {
     const url = `${import.meta.env.VITE_API_URL}/admin/crm/conversations/${selectedChat}/export?format=${format}`;
@@ -770,6 +786,16 @@ export default function WhatsAppCRM() {
                 Add
               </button>
             </div>
+          </div>
+
+          {/* Danger Zone / Delete Profile */}
+          <div className="p-4 border-t border-gray-100 bg-red-50/10 shrink-0">
+            <button
+              onClick={deleteCustomerProfile}
+              className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs rounded-lg border border-red-200 transition"
+            >
+              Delete Customer Profile
+            </button>
           </div>
         </aside>
       )}

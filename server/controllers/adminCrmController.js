@@ -246,7 +246,7 @@ export const sendCrmReply = catchAsync(async (req, res) => {
     } else if (messageType === "location") {
       metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
     } else if (messageType === "template") {
-      metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en_US", body.components || []);
+      metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", body.components || []);
     } else {
       return res.status(400).json({ success: false, message: `Unsupported CRM manual messageType: ${messageType}` });
     }
@@ -458,6 +458,74 @@ export const updateCustomerTags = catchAsync(async (req, res) => {
   await customer.save();
 
   res.status(200).json({ success: true, tags: customer.tags });
+});
+
+/**
+ * DELETE /api/admin/crm/customers/:id
+ * Delete a Customer profile and their chat thread / messages completely
+ */
+export const deleteCustomer = catchAsync(async (req, res) => {
+  const customerId = req.params.id;
+
+  const customer = await Customer.findById(customerId);
+  if (!customer) {
+    return res.status(404).json({ success: false, message: "Customer not found" });
+  }
+
+  // Permission check for executives
+  if (req.admin.role === "executive" && customer.assignedExecutive?.toString() !== req.admin._id.toString()) {
+    return res.status(403).json({ success: false, message: "Forbidden: Customer profile not assigned to you" });
+  }
+
+  // Delete chat thread and messages
+  const chat = await Chat.findOne({ customer: customerId });
+  if (chat) {
+    await Message.deleteMany({ chat: chat._id });
+    await Chat.findByIdAndDelete(chat._id);
+    emitToAdmins("chat_deleted", { chatId: chat._id });
+  }
+
+  // Delete customer profile
+  await Customer.findByIdAndDelete(customerId);
+  emitToAdmins("customer_deleted", { customerId });
+
+  res.status(200).json({ success: true, message: "Customer profile and conversations deleted successfully" });
+});
+
+/**
+ * POST /api/admin/crm/customers/bulk-delete
+ * Delete multiple Customer, Inquiry, and Callback profiles completely
+ */
+export const bulkDeleteAudience = catchAsync(async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: "No items selected for deletion" });
+  }
+
+  // Permission validation check for Executive role
+  if (req.admin.role === "executive") {
+    return res.status(403).json({ success: false, message: "Forbidden: Executives do not have bulk deletion permissions" });
+  }
+
+  for (const item of items) {
+    const { id, source } = item;
+    if (source === "WhatsApp CRM") {
+      const chat = await Chat.findOne({ customer: id });
+      if (chat) {
+        await Message.deleteMany({ chat: chat._id });
+        await Chat.findByIdAndDelete(chat._id);
+        emitToAdmins("chat_deleted", { chatId: chat._id });
+      }
+      await Customer.findByIdAndDelete(id);
+      emitToAdmins("customer_deleted", { customerId: id });
+    } else if (source === "Website Inquiry") {
+      await ContactInquiry.findByIdAndDelete(id);
+    } else if (source === "Callback Request") {
+      await CallbackRequest.findByIdAndDelete(id);
+    }
+  }
+
+  res.status(200).json({ success: true, message: `Successfully deleted ${items.length} selected contacts.` });
 });
 
 /**
@@ -832,6 +900,24 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
     return res.status(403).json({ success: false, message: "Forbidden: You do not have permission to send campaigns" });
   }
 
+  // Compute message preview text based on type
+  let messagePreview = "";
+  if (messageType === "text") {
+    messagePreview = typeof body === "string" ? body : (body.text || "");
+  } else if (messageType === "image") {
+    messagePreview = body.caption || "[Image Campaign]";
+  } else if (messageType === "document") {
+    messagePreview = body.filename || body.fileName || "[Document Campaign]";
+  } else if (messageType === "location") {
+    messagePreview = body.name ? `Location: ${body.name}` : "[Location Campaign]";
+  } else if (messageType === "template") {
+    messagePreview = `Template: ${body.templateName}`;
+  }
+
+  if (messagePreview.length > 150) {
+    messagePreview = messagePreview.substring(0, 147) + "...";
+  }
+
   const name = campaignName || `Campaign ${new Date().toISOString().split("T")[0]}`;
   const campaign = await Campaign.create({
     name,
@@ -840,117 +926,176 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
     targetCount: customerIds.length,
     successCount: 0,
     failureCount: 0,
-    sentBy: req.admin._id
+    sentBy: req.admin._id,
+    status: "Processing",
+    messagePreview
   });
 
-  let successCount = 0;
-  let failureCount = 0;
-  const errors = [];
-
-  for (const customerId of customerIds) {
-    try {
-      let customer = await Customer.findById(customerId);
-      if (!customer) {
-        const tempInq = await ContactInquiry.findById(customerId);
-        const tempCb = tempInq ? null : await CallbackRequest.findById(customerId);
-        
-        const leadName = tempInq?.name || tempCb?.name || "Customer Lead";
-        const leadPhone = tempInq?.phone || tempCb?.phone;
-        const projId = tempInq?.project || tempCb?.project || null;
-        
-        if (leadPhone) {
-          customer = await Customer.create({
-            phone: leadPhone.replace(/[^0-9]/g, ""),
-            name: leadName,
-            source: tempInq ? "Website Inquiry" : "Callback Request",
-            leadStatus: "New",
-            interestedProject: projId
-          });
-        }
-      }
-
-      if (!customer) {
-        failureCount++;
-        errors.push(`Customer ${customerId} not found`);
-        continue;
-      }
-
-      const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
-      let metaResponse = null;
-
-      if (messageType === "text") {
-        metaResponse = await whatsappService.sendTextMessage(formattedPhone, body);
-      } else if (messageType === "image") {
-        metaResponse = await whatsappService.sendImage(formattedPhone, body.url, body.caption || "");
-      } else if (messageType === "document") {
-        metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", body.caption || "");
-      } else if (messageType === "location") {
-        metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
-      } else if (messageType === "template") {
-        metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en_US", body.components || []);
-      } else {
-        failureCount++;
-        errors.push(`Unsupported messageType: ${messageType}`);
-        continue;
-      }
-
-      const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
-
-      let chat = await Chat.findOne({ customer: customer._id });
-      if (!chat) {
-        chat = await Chat.create({ customer: customer._id, status: "Open" });
-      }
-
-      let savedBody = body;
-      if (messageType !== "text" && body && typeof body === "object") {
-        savedBody = {
-          ...body,
-          cloudinaryUrl: body.cloudinaryUrl || body.url || null,
-          fileName: body.fileName || body.filename || null
-        };
-      }
-
-      const msgDoc = await Message.create({
-        chat: chat._id,
-        direction: "outgoing",
-        messageType,
-        body: messageType === "text" ? body : savedBody,
-        metaMessageId,
-        deliveryStatus: "sent",
-        sentBy: req.admin._id,
-        timestamp: new Date()
-      });
-
-      customer.lastMessage = messageType === "text" ? body : `[Promotional ${messageType}]`;
-      customer.lastMessageAt = new Date();
-      customer.lastActiveAt = new Date();
-      await customer.save();
-
-      const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
-      emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
-
-      successCount++;
-    } catch (err) {
-      console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.message);
-      failureCount++;
-      errors.push(`Customer ${customerId} error: ${err.message}`);
-    }
-  }
-
-  // Update campaign metrics
-  campaign.successCount = successCount;
-  campaign.failureCount = failureCount;
-  await campaign.save();
-
-  res.status(200).json({
+  // Return immediately to frontend
+  res.status(202).json({
     success: true,
+    message: "Campaign broadcast started in background",
     data: {
+      campaignId: campaign._id,
       total: customerIds.length,
+      status: "Processing"
+    }
+  });
+
+  // Asynchronous background task execution with rate-limit pacing (300ms)
+  const campaignPromise = (async () => {
+    let successCount = 0;
+    let failureCount = 0;
+    const errors = [];
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    for (let i = 0; i < customerIds.length; i++) {
+      const customerId = customerIds[i];
+
+      try {
+        // Safe spacing delay (pacing)
+        if (i > 0) {
+          await sleep(300);
+        }
+
+        let customer = await Customer.findById(customerId);
+        if (!customer) {
+          const tempInq = await ContactInquiry.findById(customerId);
+          const tempCb = tempInq ? null : await CallbackRequest.findById(customerId);
+          
+          const leadName = tempInq?.name || tempCb?.name || "Customer Lead";
+          const leadPhone = tempInq?.phone || tempCb?.phone;
+          const projId = tempInq?.project || tempCb?.project || null;
+          
+          if (leadPhone) {
+            customer = await Customer.create({
+              phone: leadPhone.replace(/[^0-9]/g, ""),
+              name: leadName,
+              source: tempInq ? "Website Inquiry" : "Callback Request",
+              leadStatus: "New",
+              interestedProject: projId
+            });
+          }
+        }
+
+        if (!customer) {
+          failureCount++;
+          errors.push(`Customer ${customerId} not found`);
+          
+          await Campaign.findByIdAndUpdate(campaign._id, { successCount, failureCount });
+          emitToAdmins("campaign_progress", {
+            campaignId: campaign._id.toString(),
+            name: campaign.name,
+            status: "Processing",
+            successCount,
+            failureCount,
+            targetCount: customerIds.length,
+            current: successCount + failureCount
+          });
+          continue;
+        }
+
+        const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
+        let metaResponse = null;
+
+        if (messageType === "text") {
+          metaResponse = await whatsappService.sendTextMessage(formattedPhone, body);
+        } else if (messageType === "image") {
+          metaResponse = await whatsappService.sendImage(formattedPhone, body.url, body.caption || "");
+        } else if (messageType === "document") {
+          metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", body.caption || "");
+        } else if (messageType === "location") {
+          metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
+        } else if (messageType === "template") {
+          metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", body.components || []);
+        } else {
+          failureCount++;
+          errors.push(`Unsupported messageType: ${messageType}`);
+          
+          await Campaign.findByIdAndUpdate(campaign._id, { successCount, failureCount });
+          emitToAdmins("campaign_progress", {
+            campaignId: campaign._id.toString(),
+            name: campaign.name,
+            status: "Processing",
+            successCount,
+            failureCount,
+            targetCount: customerIds.length,
+            current: successCount + failureCount
+          });
+          continue;
+        }
+
+        const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
+
+        let chat = await Chat.findOne({ customer: customer._id });
+        if (!chat) {
+          chat = await Chat.create({ customer: customer._id, status: "Open" });
+        }
+
+        let savedBody = body;
+        if (messageType !== "text" && body && typeof body === "object") {
+          savedBody = {
+            ...body,
+            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+            fileName: body.fileName || body.filename || null
+          };
+        }
+
+        const msgDoc = await Message.create({
+          chat: chat._id,
+          direction: "outgoing",
+          messageType,
+          body: messageType === "text" ? body : savedBody,
+          metaMessageId,
+          deliveryStatus: "sent",
+          sentBy: req.admin._id,
+          timestamp: new Date()
+        });
+
+        customer.lastMessage = messageType === "text" ? body : `[Promotional ${messageType}]`;
+        customer.lastMessageAt = new Date();
+        customer.lastActiveAt = new Date();
+        await customer.save();
+
+        const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
+        emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
+
+        successCount++;
+      } catch (err) {
+        console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.message);
+        failureCount++;
+        errors.push(`Customer ${customerId} error: ${err.message}`);
+      }
+
+      // Update progress metrics in DB and stream back via Socket
+      await Campaign.findByIdAndUpdate(campaign._id, { successCount, failureCount });
+      emitToAdmins("campaign_progress", {
+        campaignId: campaign._id.toString(),
+        name: campaign.name,
+        status: "Processing",
+        successCount,
+        failureCount,
+        targetCount: customerIds.length,
+        current: successCount + failureCount
+      });
+    }
+
+    // Mark completion
+    const finalStatus = successCount > 0 ? "Completed" : "Failed";
+    await Campaign.findByIdAndUpdate(campaign._id, { status: finalStatus });
+
+    emitToAdmins("campaign_progress", {
+      campaignId: campaign._id.toString(),
+      name: campaign.name,
+      status: finalStatus,
       successCount,
       failureCount,
-      errors
-    }
-  });
+      targetCount: customerIds.length,
+      current: customerIds.length
+    });
+  })();
+
+  req.campaignPromise = campaignPromise;
 });
 
 /**
