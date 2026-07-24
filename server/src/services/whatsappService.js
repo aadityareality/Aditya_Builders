@@ -96,21 +96,26 @@ export const sendMetaMessage = async (payload) => {
 /**
  * Send standard plain text message
  * @param {string} to - Recipient phone number (with country code, e.g. 919974858500)
- * @param {string} text - Message body
+ * @param {string} text - Message body (raw, no greeting prepended)
+ * @param {string} [customerName] - Optional customer name for greeting
  */
-export const sendTextMessage = async (to, text) => {
+export const sendTextMessage = async (to, text, customerName = null) => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
   const activeSession = await checkActiveSession(formattedPhone);
 
-  if (!activeSession) {
-    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing via aditya_broadcast template...`);
+  // Helper: resolve name from param or DB lookup
+  const resolveName = async () => {
+    if (customerName) return customerName.trim();
     const cleanPhone = formattedPhone.slice(-10);
-    const customer = await Customer.findOne({
-      phone: { $regex: new RegExp(cleanPhone + "$") }
-    });
-    const name = customer ? customer.name : "Client";
+    const customer = await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
+    return customer ? customer.name : "Client";
+  };
+
+  if (!activeSession) {
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing via simple_greeting template...`);
+    const name = await resolveName();
     const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -121,29 +126,24 @@ export const sendTextMessage = async (to, text) => {
     ]);
   }
 
+  // Active session: send free-form with greeting prepended
+  const name = await resolveName();
+  const fullText = `hello, ${name} !\n\n${text}`;
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to: formattedPhone,
     type: "text",
-    text: {
-      preview_url: true,
-      body: text,
-    },
+    text: { preview_url: true, body: fullText },
   };
   try {
     return await sendMetaMessage(payload);
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying with aditya_broadcast template fallback...`);
-      const cleanPhone = formattedPhone.slice(-10);
-      const customer = await Customer.findOne({
-        phone: { $regex: new RegExp(cleanPhone + "$") }
-      });
-      const name = customer ? customer.name : "Client";
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to simple_greeting template...`);
       const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
         {
           type: "BODY",
           parameters: [
@@ -197,22 +197,21 @@ export const markMessageAsRead = async (messageId) => {
  * Send an image
  * @param {string} to - Recipient phone number
  * @param {string} imageUrl - Fully qualified direct URL to public image
- * @param {string} [caption] - Text description below image
+ * @param {string} [caption] - Text caption
+ * @param {string} [customerName] - Optional customer name for greeting in template fallback
  */
-export const sendImage = async (to, imageUrl, caption = "") => {
+export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
   const activeSession = await checkActiveSession(formattedPhone);
 
   if (!activeSession) {
-    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing image via aditya_broadcast template...`);
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing image via simple_greeting template...`);
     const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
     const cleanPhone = formattedPhone.slice(-10);
-    const customer = await Customer.findOne({
-      phone: { $regex: new RegExp(cleanPhone + "$") }
-    });
-    const name = customer ? customer.name : "Client";
+    const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
+    const name = customerName || (customer ? customer.name : "Client");
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -237,19 +236,17 @@ export const sendImage = async (to, imageUrl, caption = "") => {
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying image with aditya_broadcast template fallback...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying image with simple_greeting template fallback...`);
       const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
       const cleanPhone = formattedPhone.slice(-10);
-      const customer = await Customer.findOne({
-        phone: { $regex: new RegExp(cleanPhone + "$") }
-      });
-      const name = customer ? customer.name : "Client";
+      const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
+      const name2 = customerName || (customer ? customer.name : "Client");
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
         {
           type: "BODY",
           parameters: [
-            { type: "text", text: name },
+            { type: "text", text: name2 },
             { type: "text", text: cleanedText }
           ]
         }
@@ -265,21 +262,25 @@ export const sendImage = async (to, imageUrl, caption = "") => {
  * @param {string} documentUrl - Fully qualified direct URL to public document (PDF, docx, etc.)
  * @param {string} filename - Display filename for WhatsApp UI
  * @param {string} [caption] - Text caption
+ * @param {string} [customerName] - Optional customer name for greeting in template fallback
  */
-export const sendDocument = async (to, documentUrl, filename, caption = "") => {
+export const sendDocument = async (to, documentUrl, filename, caption = "", customerName = null) => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
   const activeSession = await checkActiveSession(formattedPhone);
 
-  if (!activeSession) {
-    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing document via aditya_broadcast template...`);
-    const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
+  const resolveDocName = async () => {
+    if (customerName) return customerName.trim();
     const cleanPhone = formattedPhone.slice(-10);
-    const customer = await Customer.findOne({
-      phone: { $regex: new RegExp(cleanPhone + "$") }
-    });
-    const name = customer ? customer.name : "Client";
+    const customer = await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
+    return customer ? customer.name : "Client";
+  };
+
+  if (!activeSession) {
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing document via simple_greeting template...`);
+    const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
+    const name = await resolveDocName();
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -305,15 +306,11 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying document with aditya_broadcast template fallback...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying document with simple_greeting template fallback...`);
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
-      const cleanPhone = formattedPhone.slice(-10);
-      const customer = await Customer.findOne({
-        phone: { $regex: new RegExp(cleanPhone + "$") }
-      });
-      const name = customer ? customer.name : "Client";
+      const name = await resolveDocName();
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
         {
           type: "BODY",
           parameters: [

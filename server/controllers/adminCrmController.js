@@ -1016,14 +1016,15 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
           let personalizedMsgText = "";
 
           if (messageType === "text") {
-            personalizedMsgText = personalizeMessage(body, customer.name);
-            metaResponse = await whatsappService.sendTextMessage(formattedPhone, personalizedMsgText);
+            // Pass raw body — whatsappService handles greeting via template {{1}} or prepend for active sessions
+            personalizedMsgText = typeof body === "string" ? body : (body.text || "");
+            metaResponse = await whatsappService.sendTextMessage(formattedPhone, personalizedMsgText, customer.name);
           } else if (messageType === "image") {
-            personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
-            metaResponse = await whatsappService.sendImage(formattedPhone, body.url, personalizedMsgText);
+            personalizedMsgText = body.caption || "";
+            metaResponse = await whatsappService.sendImage(formattedPhone, body.url, personalizedMsgText, customer.name);
           } else if (messageType === "document") {
-            personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
-            metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", personalizedMsgText);
+            personalizedMsgText = body.caption || "";
+            metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", personalizedMsgText, customer.name);
           } else if (messageType === "location") {
             personalizedMsgText = body.name ? `Location: ${body.name}` : "[Location Campaign]";
             metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
