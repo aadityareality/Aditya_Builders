@@ -1238,3 +1238,18 @@ export const getCampaignHistory = catchAsync(async (req, res) => {
     data: campaigns
   });
 });
+
+/**
+ * DELETE /api/admin/crm/campaigns/:id
+ * Delete a single campaign record (superadmin / manager only)
+ */
+export const deleteCampaign = catchAsync(async (req, res) => {
+  if (req.admin.role !== "superadmin" && req.admin.role !== "manager") {
+    return res.status(403).json({ success: false, message: "Forbidden: insufficient permissions" });
+  }
+  const campaign = await Campaign.findByIdAndDelete(req.params.id);
+  if (!campaign) {
+    return res.status(404).json({ success: false, message: "Campaign not found" });
+  }
+  res.status(200).json({ success: true, message: "Campaign deleted" });
+});
