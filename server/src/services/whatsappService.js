@@ -115,7 +115,7 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     console.log(`⚠️ No active session for ${formattedPhone}. Routing via simple_greeting template...`);
     const name = await resolveName();
     const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -143,7 +143,7 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
       console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to simple_greeting template...`);
       const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
           parameters: [
@@ -211,7 +211,7 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
     const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
     const name = customerName || (customer ? customer.name : "Client");
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -242,7 +242,7 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
       const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
       const name2 = customerName || (customer ? customer.name : "Client");
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
           parameters: [
@@ -280,7 +280,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
     const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
     const name = await resolveDocName();
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
         parameters: [
@@ -310,7 +310,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
       const name = await resolveDocName();
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "simple_greeting", "en", [
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
           parameters: [
