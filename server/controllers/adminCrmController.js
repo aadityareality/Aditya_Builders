@@ -1009,134 +1009,107 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
           }
         }
 
-        if (!customer) {
-          failureCount++;
-          errors.push(`Customer ${customerId} not found`);
-          
-          await Campaign.findByIdAndUpdate(campaign._id, { successCount, failureCount });
-          emitToAdmins("campaign_progress", {
-            campaignId: campaign._id.toString(),
-            name: campaign.name,
-            status: "Processing",
-            successCount,
-            failureCount,
-            targetCount: customerIds.length,
-            current: successCount + failureCount
+        if (customer) {
+          const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
+          let metaResponse = null;
+
+          let personalizedMsgText = "";
+
+          if (messageType === "text") {
+            personalizedMsgText = personalizeMessage(body, customer.name);
+            metaResponse = await whatsappService.sendTextMessage(formattedPhone, personalizedMsgText);
+          } else if (messageType === "image") {
+            personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
+            metaResponse = await whatsappService.sendImage(formattedPhone, body.url, personalizedMsgText);
+          } else if (messageType === "document") {
+            personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
+            metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", personalizedMsgText);
+          } else if (messageType === "location") {
+            personalizedMsgText = body.name ? `Location: ${body.name}` : "[Location Campaign]";
+            metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
+          } else if (messageType === "template") {
+            const personalizedComponents = (body.components || []).map(comp => {
+              if (comp.parameters) {
+                return {
+                  ...comp,
+                  parameters: comp.parameters.map(param => {
+                    if (param.type === "text" && param.text) {
+                      const personalizedText = personalizeMessage(param.text, customer.name);
+                      const cleanedText = personalizedText.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+                      return { ...param, text: cleanedText };
+                    }
+                    return param;
+                  })
+                };
+              }
+              return comp;
+            });
+            
+            // Compute message preview text for template
+            const textParam = body.components?.[0]?.parameters?.[0]?.text || "";
+            personalizedMsgText = textParam ? personalizeMessage(textParam, customer.name) : `Template: ${body.templateName}`;
+            
+            metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", personalizedComponents);
+          }
+
+          const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
+
+          let chat = await Chat.findOne({ customer: customer._id });
+          if (!chat) {
+            chat = await Chat.create({ customer: customer._id, status: "Open" });
+          }
+
+          let savedBody = body;
+          if (messageType === "text") {
+            savedBody = personalizedMsgText;
+          } else if (messageType === "image" && body && typeof body === "object") {
+            savedBody = {
+              ...body,
+              caption: personalizedMsgText,
+              cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+              fileName: body.fileName || body.filename || null
+            };
+          } else if (messageType === "document" && body && typeof body === "object") {
+            savedBody = {
+              ...body,
+              caption: personalizedMsgText,
+              cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+              fileName: body.fileName || body.filename || null
+            };
+          } else if (body && typeof body === "object") {
+            savedBody = {
+              ...body,
+              cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+              fileName: body.fileName || body.filename || null
+            };
+          }
+
+          const msgDoc = await Message.create({
+            chat: chat._id,
+            direction: "outgoing",
+            messageType,
+            body: messageType === "text" ? personalizedMsgText : savedBody,
+            metaMessageId,
+            deliveryStatus: "sent",
+            sentBy: req.admin._id,
+            timestamp: new Date()
           });
-          continue;
-        }
 
-        const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
-        let metaResponse = null;
+          customer.lastMessage = personalizedMsgText;
+          customer.lastMessageAt = new Date();
+          customer.lastActiveAt = new Date();
+          await customer.save();
 
-        let personalizedMsgText = "";
+          const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
+          emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
 
-        if (messageType === "text") {
-          personalizedMsgText = personalizeMessage(body, customer.name);
-          metaResponse = await whatsappService.sendTextMessage(formattedPhone, personalizedMsgText);
-        } else if (messageType === "image") {
-          personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
-          metaResponse = await whatsappService.sendImage(formattedPhone, body.url, personalizedMsgText);
-        } else if (messageType === "document") {
-          personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
-          metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", personalizedMsgText);
-        } else if (messageType === "location") {
-          personalizedMsgText = body.name ? `Location: ${body.name}` : "[Location Campaign]";
-          metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
-        } else if (messageType === "template") {
-          const personalizedComponents = (body.components || []).map(comp => {
-            if (comp.parameters) {
-              return {
-                ...comp,
-                parameters: comp.parameters.map(param => {
-                  if (param.type === "text" && param.text) {
-                    const personalizedText = personalizeMessage(param.text, customer.name);
-                    const cleanedText = personalizedText.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-                    return { ...param, text: cleanedText };
-                  }
-                  return param;
-                })
-              };
-            }
-            return comp;
-          });
-          
-          // Compute message preview text for template
-          const textParam = body.components?.[0]?.parameters?.[0]?.text || "";
-          personalizedMsgText = textParam ? personalizeMessage(textParam, customer.name) : `Template: ${body.templateName}`;
-          
-          metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", personalizedComponents);
+          successCount++;
         } else {
           failureCount++;
-          errors.push(`Unsupported messageType: ${messageType}`);
-          
-          await Campaign.findByIdAndUpdate(campaign._id, { successCount, failureCount });
-          emitToAdmins("campaign_progress", {
-            campaignId: campaign._id.toString(),
-            name: campaign.name,
-            status: "Processing",
-            successCount,
-            failureCount,
-            targetCount: customerIds.length,
-            current: successCount + failureCount
-          });
-          continue;
+          errors.push(`Customer ${customerId} not found`);
         }
-
-        const metaMessageId = metaResponse?.messages?.[0]?.id || `broadcast-${Date.now()}-${customer._id}`;
-
-        let chat = await Chat.findOne({ customer: customer._id });
-        if (!chat) {
-          chat = await Chat.create({ customer: customer._id, status: "Open" });
-        }
-
-        let savedBody = body;
-        if (messageType === "text") {
-          savedBody = personalizedMsgText;
-        } else if (messageType === "image" && body && typeof body === "object") {
-          savedBody = {
-            ...body,
-            caption: personalizedMsgText,
-            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
-            fileName: body.fileName || body.filename || null
-          };
-        } else if (messageType === "document" && body && typeof body === "object") {
-          savedBody = {
-            ...body,
-            caption: personalizedMsgText,
-            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
-            fileName: body.fileName || body.filename || null
-          };
-        } else if (body && typeof body === "object") {
-          savedBody = {
-            ...body,
-            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
-            fileName: body.fileName || body.filename || null
-          };
-        }
-
-        const msgDoc = await Message.create({
-          chat: chat._id,
-          direction: "outgoing",
-          messageType,
-          body: messageType === "text" ? personalizedMsgText : savedBody,
-          metaMessageId,
-          deliveryStatus: "sent",
-          sentBy: req.admin._id,
-          timestamp: new Date()
-        });
-
-        customer.lastMessage = personalizedMsgText;
-        customer.lastMessageAt = new Date();
-        customer.lastActiveAt = new Date();
-        await customer.save();
-
-        const populatedMsg = await Message.findById(msgDoc._id).populate("sentBy", "name email");
-        emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
-
-        successCount++;
       } catch (err) {
-        console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.message);
+        console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.stack);
         failureCount++;
         errors.push(`Customer ${customerId} error: ${err.message}`);
       }
