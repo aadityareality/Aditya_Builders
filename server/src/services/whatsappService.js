@@ -100,6 +100,27 @@ export const sendMetaMessage = async (payload) => {
  */
 export const sendTextMessage = async (to, text) => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing via aditya_broadcast template...`);
+    const cleanPhone = formattedPhone.slice(-10);
+    const customer = await Customer.findOne({
+      phone: { $regex: new RegExp(cleanPhone + "$") }
+    });
+    const name = customer ? customer.name : "Client";
+    const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      {
+        type: "BODY",
+        parameters: [
+          { type: "text", text: name },
+          { type: "text", text: cleanedText }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -110,7 +131,30 @@ export const sendTextMessage = async (to, text) => {
       body: text,
     },
   };
-  return await sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying with aditya_broadcast template fallback...`);
+      const cleanPhone = formattedPhone.slice(-10);
+      const customer = await Customer.findOne({
+        phone: { $regex: new RegExp(cleanPhone + "$") }
+      });
+      const name = customer ? customer.name : "Client";
+      const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -157,6 +201,28 @@ export const markMessageAsRead = async (messageId) => {
  */
 export const sendImage = async (to, imageUrl, caption = "") => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing image via aditya_broadcast template...`);
+    const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
+    const cleanPhone = formattedPhone.slice(-10);
+    const customer = await Customer.findOne({
+      phone: { $regex: new RegExp(cleanPhone + "$") }
+    });
+    const name = customer ? customer.name : "Client";
+    const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      {
+        type: "BODY",
+        parameters: [
+          { type: "text", text: name },
+          { type: "text", text: cleanedText }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -166,7 +232,31 @@ export const sendImage = async (to, imageUrl, caption = "") => {
       caption: caption,
     },
   };
-  return await sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying image with aditya_broadcast template fallback...`);
+      const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
+      const cleanPhone = formattedPhone.slice(-10);
+      const customer = await Customer.findOne({
+        phone: { $regex: new RegExp(cleanPhone + "$") }
+      });
+      const name = customer ? customer.name : "Client";
+      const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -178,6 +268,28 @@ export const sendImage = async (to, imageUrl, caption = "") => {
  */
 export const sendDocument = async (to, documentUrl, filename, caption = "") => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
+  const activeSession = await checkActiveSession(formattedPhone);
+
+  if (!activeSession) {
+    console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing document via aditya_broadcast template...`);
+    const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
+    const cleanPhone = formattedPhone.slice(-10);
+    const customer = await Customer.findOne({
+      phone: { $regex: new RegExp(cleanPhone + "$") }
+    });
+    const name = customer ? customer.name : "Client";
+    const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+    return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+      {
+        type: "BODY",
+        parameters: [
+          { type: "text", text: name },
+          { type: "text", text: cleanedText }
+        ]
+      }
+    ]);
+  }
+
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -188,7 +300,31 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
       caption: caption,
     },
   };
-  return await sendMetaMessage(payload);
+  try {
+    return await sendMetaMessage(payload);
+  } catch (err) {
+    const errData = err.message || "";
+    if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying document with aditya_broadcast template fallback...`);
+      const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
+      const cleanPhone = formattedPhone.slice(-10);
+      const customer = await Customer.findOne({
+        phone: { $regex: new RegExp(cleanPhone + "$") }
+      });
+      const name = customer ? customer.name : "Client";
+      const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+      return await sendTemplateMessage(formattedPhone, "aditya_broadcast", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
+    }
+    throw err;
+  }
 };
 
 /**
