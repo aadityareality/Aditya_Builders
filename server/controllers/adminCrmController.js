@@ -881,6 +881,37 @@ export const getCrmAnalytics = catchAsync(async (req, res) => {
 });
 
 /**
+ * Helper to personalize campaign messages with the customer name
+ * 1. Replaces {{name}} or {name} placeholders.
+ * 2. Prepends "hello, {customerName}\n" if no standard greeting is present at the start.
+ */
+const personalizeMessage = (messageText, customerName) => {
+  if (!messageText || typeof messageText !== "string") return messageText;
+
+  const name = (customerName || "Client").trim();
+  let personalized = messageText;
+
+  if (/\{\{name\}\}/i.test(personalized)) {
+    personalized = personalized.replace(/\{\{name\}\}/gi, name);
+  } else if (/\{name\}/i.test(personalized)) {
+    personalized = personalized.replace(/\{name\}/gi, name);
+  } else {
+    const cleanMsg = personalized.toLowerCase().trim();
+    const hasGreeting = cleanMsg.startsWith("hello") || 
+                        cleanMsg.startsWith("hi") || 
+                        cleanMsg.startsWith("dear") ||
+                        cleanMsg.startsWith("hey") ||
+                        cleanMsg.startsWith("respect");
+                        
+    if (!hasGreeting) {
+      personalized = `hello, ${name}\n${personalized}`;
+    }
+  }
+
+  return personalized;
+};
+
+/**
  * POST /api/admin/crm/broadcast
  * Send promotional WhatsApp message to multiple selected customers
  */
@@ -998,16 +1029,43 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
         const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
         let metaResponse = null;
 
+        let personalizedMsgText = "";
+
         if (messageType === "text") {
-          metaResponse = await whatsappService.sendTextMessage(formattedPhone, body);
+          personalizedMsgText = personalizeMessage(body, customer.name);
+          metaResponse = await whatsappService.sendTextMessage(formattedPhone, personalizedMsgText);
         } else if (messageType === "image") {
-          metaResponse = await whatsappService.sendImage(formattedPhone, body.url, body.caption || "");
+          personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
+          metaResponse = await whatsappService.sendImage(formattedPhone, body.url, personalizedMsgText);
         } else if (messageType === "document") {
-          metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", body.caption || "");
+          personalizedMsgText = personalizeMessage(body.caption || "", customer.name);
+          metaResponse = await whatsappService.sendDocument(formattedPhone, body.url, body.filename || "file.pdf", personalizedMsgText);
         } else if (messageType === "location") {
+          personalizedMsgText = body.name ? `Location: ${body.name}` : "[Location Campaign]";
           metaResponse = await whatsappService.sendLocation(formattedPhone, body.latitude, body.longitude, body.name || "", body.address || "");
         } else if (messageType === "template") {
-          metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", body.components || []);
+          const personalizedComponents = (body.components || []).map(comp => {
+            if (comp.parameters) {
+              return {
+                ...comp,
+                parameters: comp.parameters.map(param => {
+                  if (param.type === "text" && param.text) {
+                    const personalizedText = personalizeMessage(param.text, customer.name);
+                    const cleanedText = personalizedText.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+                    return { ...param, text: cleanedText };
+                  }
+                  return param;
+                })
+              };
+            }
+            return comp;
+          });
+          
+          // Compute message preview text for template
+          const textParam = body.components?.[0]?.parameters?.[0]?.text || "";
+          personalizedMsgText = textParam ? personalizeMessage(textParam, customer.name) : `Template: ${body.templateName}`;
+          
+          metaResponse = await whatsappService.sendTemplateMessage(formattedPhone, body.templateName, body.languageCode || "en", personalizedComponents);
         } else {
           failureCount++;
           errors.push(`Unsupported messageType: ${messageType}`);
@@ -1033,7 +1091,23 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
         }
 
         let savedBody = body;
-        if (messageType !== "text" && body && typeof body === "object") {
+        if (messageType === "text") {
+          savedBody = personalizedMsgText;
+        } else if (messageType === "image" && body && typeof body === "object") {
+          savedBody = {
+            ...body,
+            caption: personalizedMsgText,
+            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+            fileName: body.fileName || body.filename || null
+          };
+        } else if (messageType === "document" && body && typeof body === "object") {
+          savedBody = {
+            ...body,
+            caption: personalizedMsgText,
+            cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+            fileName: body.fileName || body.filename || null
+          };
+        } else if (body && typeof body === "object") {
           savedBody = {
             ...body,
             cloudinaryUrl: body.cloudinaryUrl || body.url || null,
@@ -1045,14 +1119,14 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
           chat: chat._id,
           direction: "outgoing",
           messageType,
-          body: messageType === "text" ? body : savedBody,
+          body: messageType === "text" ? personalizedMsgText : savedBody,
           metaMessageId,
           deliveryStatus: "sent",
           sentBy: req.admin._id,
           timestamp: new Date()
         });
 
-        customer.lastMessage = messageType === "text" ? body : `[Promotional ${messageType}]`;
+        customer.lastMessage = personalizedMsgText;
         customer.lastMessageAt = new Date();
         customer.lastActiveAt = new Date();
         await customer.save();
