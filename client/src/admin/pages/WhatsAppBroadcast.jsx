@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../../hooks/api.js";
 import toast from "react-hot-toast";
-import { FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers, FiUpload, FiX } from "react-icons/fi";
+import { FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers, FiUpload, FiX, FiTrash2 } from "react-icons/fi";
 import Loader from "../../components/ui/Loader.jsx";
 import { useSocket } from "../../hooks/useSocket.js";
 
@@ -56,6 +56,8 @@ export default function WhatsAppBroadcast() {
   // Campaign History
   const [campaignHistory, setCampaignHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [deletingCampaignId, setDeletingCampaignId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   // Add Customer Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -76,6 +78,20 @@ export default function WhatsAppBroadcast() {
       console.warn("Failed to load campaign history:", err.message);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (id) => {
+    try {
+      setDeletingCampaignId(id);
+      await api.delete(`/admin/crm/campaigns/${id}`);
+      setCampaignHistory(prev => prev.filter(c => c._id !== id));
+      toast.success("Campaign deleted");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete campaign");
+    } finally {
+      setDeletingCampaignId(null);
+      setConfirmDeleteId(null);
     }
   };
 
@@ -715,6 +731,7 @@ export default function WhatsAppBroadcast() {
                   <th className="p-3 text-center">Audience Count</th>
                   <th className="p-3 text-center">Status / Success</th>
                   <th className="p-3">Dispatched By</th>
+                  <th className="p-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 text-gray-700 font-semibold">
@@ -772,6 +789,33 @@ export default function WhatsAppBroadcast() {
                       </td>
                       <td className="p-3 text-gray-500 font-bold">
                         {typeof item.sentBy === "object" ? (item.sentBy?.name || "System Bot") : (item.sentBy || "System Bot")}
+                      </td>
+                      <td className="p-3 text-center">
+                        {confirmDeleteId === item._id ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleDeleteCampaign(item._id)}
+                              disabled={deletingCampaignId === item._id}
+                              className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                              {deletingCampaignId === item._id ? "..." : "Yes"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-2 py-0.5 rounded text-[9px] font-extrabold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(item._id)}
+                            title="Delete campaign"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 hover:text-red-700 transition-colors"
+                          >
+                            <FiTrash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
