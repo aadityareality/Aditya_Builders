@@ -1035,7 +1035,7 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
                   parameters: comp.parameters.map(param => {
                     if (param.type === "text" && param.text) {
                       const personalizedText = personalizeMessage(param.text, customer.name);
-                      const cleanedText = personalizedText.trim();
+                      const cleanedText = personalizedText.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
                       return { ...param, text: cleanedText };
                     }
                     return param;

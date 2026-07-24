@@ -104,7 +104,7 @@ export const sendTextMessage = async (to, text) => {
 
   if (!activeSession) {
     console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing via template...`);
-    const cleanedText = text.trim();
+    const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
         type: "BODY",
@@ -131,7 +131,7 @@ export const sendTextMessage = async (to, text) => {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
       console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying with template fallback...`);
-      const cleanedText = text.trim();
+      const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
@@ -194,7 +194,7 @@ export const sendImage = async (to, imageUrl, caption = "") => {
   if (!activeSession) {
     console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing image via template...`);
     const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
-    const cleanedText = textFallback.trim();
+    const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
         type: "BODY",
@@ -221,7 +221,7 @@ export const sendImage = async (to, imageUrl, caption = "") => {
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
       console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying image with template fallback...`);
       const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
-      const cleanedText = textFallback.trim();
+      const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
@@ -249,7 +249,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
   if (!activeSession) {
     console.log(`⚠️ Preemptive 24-hour window restriction for ${formattedPhone}. Routing document via template...`);
     const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
-    const cleanedText = textFallback.trim();
+    const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
     return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
         type: "BODY",
@@ -277,7 +277,7 @@ export const sendDocument = async (to, documentUrl, filename, caption = "") => {
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
       console.log(`⚠️ 24-hour window restriction for ${formattedPhone}. Retrying document with template fallback...`);
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
-      const cleanedText = textFallback.trim();
+      const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
