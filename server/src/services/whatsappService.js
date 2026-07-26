@@ -112,9 +112,10 @@ export const sendTextMessage = async (to, text, customerName = null) => {
   };
 
   if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing via simple_greeting template...`);
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing via client_greeting template...`);
     const name = await resolveName();
-    const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+    // Preserve newlines — Meta allows \n in template body parameters
+    const cleanedText = text.replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
     return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
@@ -141,8 +142,8 @@ export const sendTextMessage = async (to, text, customerName = null) => {
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to simple_greeting template...`);
-      const cleanedText = text.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to client_greeting template...`);
+      const cleanedText = text.replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
       return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
@@ -202,52 +203,40 @@ export const markMessageAsRead = async (messageId) => {
  */
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = to.replace(/[^0-9]/g, "");
-  const activeSession = await checkActiveSession(formattedPhone);
 
-  if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing image via simple_greeting template...`);
-    const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
-    const cleanPhone = formattedPhone.slice(-10);
-    const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
-    const name = customerName || (customer ? customer.name : "Client");
-    const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-      {
-        type: "BODY",
-        parameters: [
-          { type: "text", text: name },
-          { type: "text", text: cleanedText }
-        ]
-      }
-    ]);
-  }
-
+  // Always attempt to send the actual image directly.
+  // Let WhatsApp's API decide if the session is active — avoids false negatives from checkActiveSession.
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
     type: "image",
     image: {
       link: imageUrl,
-      caption: caption,
+      caption: caption || "",
     },
   };
+
   try {
     return await sendMetaMessage(payload);
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying image with simple_greeting template fallback...`);
-      const textFallback = `${caption ? caption + " " : ""}Image Link: ${imageUrl}`;
+      // No active session — fall back to image_broadcast template (sends actual image via HEADER)
+      console.log(`No active session for ${formattedPhone}. Falling back to image_broadcast template...`);
       const cleanPhone = formattedPhone.slice(-10);
       const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
-      const name2 = customerName || (customer ? customer.name : "Client");
-      const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+      const name = customerName || (customer ? customer.name : "Client");
+      const cleanCaption = (caption || "Check out this image").replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
+      return await sendTemplateMessage(formattedPhone, "image_broadcast", "en", [
+        {
+          type: "HEADER",
+          parameters: [{ type: "image", image: { link: imageUrl } }]
+        },
         {
           type: "BODY",
           parameters: [
-            { type: "text", text: name2 },
-            { type: "text", text: cleanedText }
+            { type: "text", text: name },
+            { type: "text", text: cleanCaption }
           ]
         }
       ]);
@@ -255,6 +244,7 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
     throw err;
   }
 };
+
 
 /**
  * Send a document
