@@ -74,10 +74,16 @@ const customerSchema = new Schema(
       type: Number,
       default: 0,
     },
+    category: {
+      type: String,
+      default: "General",
+      trim: true,
+    },
     tags: {
       type: [String],
       default: [],
     },
+
     internalNotes: [noteSchema],
     lastActiveAt: {
       type: Date,

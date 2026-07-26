@@ -300,10 +300,10 @@ export const sendCrmReply = catchAsync(async (req, res) => {
 
 /**
  * PATCH /api/admin/crm/customers/:id
- * Edit Customer lead status or assigned executive
+ * Edit Customer profile (name, phone, category, lead status, assigned executive, etc.)
  */
 export const updateCustomer = catchAsync(async (req, res) => {
-  const { name, email, leadStatus, assignedExecutive, pinned, priority, budget, city, state, dealValue, nextFollowUpDate } = req.body;
+  const { name, phone, category, email, leadStatus, assignedExecutive, pinned, priority, budget, city, state, dealValue, nextFollowUpDate } = req.body;
   const customerId = req.params.id;
 
   const customer = await Customer.findById(customerId);
@@ -316,7 +316,12 @@ export const updateCustomer = catchAsync(async (req, res) => {
     return res.status(403).json({ success: false, message: "Forbidden: Profile not assigned to you" });
   }
 
-  if (name !== undefined) customer.name = name;
+  if (name !== undefined) customer.name = name.trim();
+  if (phone !== undefined) {
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone) customer.phone = cleanPhone;
+  }
+  if (category !== undefined) customer.category = category.trim() || "General";
   if (email !== undefined) customer.email = email;
   if (leadStatus !== undefined) customer.leadStatus = leadStatus;
   if (pinned !== undefined) customer.pinned = pinned;
@@ -354,7 +359,7 @@ export const updateCustomer = catchAsync(async (req, res) => {
  * Create a new Customer profile manually
  */
 export const createCustomer = catchAsync(async (req, res) => {
-  const { name, phone, city, state } = req.body;
+  const { name, phone, category, city, state } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: "Customer name is required" });
@@ -381,6 +386,7 @@ export const createCustomer = catchAsync(async (req, res) => {
   const customer = await Customer.create({
     name: name.trim(),
     phone: cleanPhone,
+    category: category ? category.trim() : "General",
     city: city ? city.trim() : "",
     state: state ? state.trim() : "",
     source: "Manual Add",
@@ -397,6 +403,7 @@ export const createCustomer = catchAsync(async (req, res) => {
     data: customer
   });
 });
+
 
 /**
  * POST /api/admin/crm/customers/:id/notes
@@ -1009,9 +1016,15 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
           }
         }
 
-        if (customer) {
-          const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
-          let metaResponse = null;
+        if (!customer || !customer.phone || customer.phone.replace(/[^0-9]/g, "").length < 10) {
+          console.log(`⚠️ [Campaign ${campaign._id}] Skipping customer ${customerId} - missing or blank phone number.`);
+          failureCount++;
+          continue;
+        }
+
+        const formattedPhone = whatsappService.formatPhoneNumber(customer.phone);
+        let metaResponse = null;
+
 
           let personalizedMsgText = "";
 
@@ -1174,6 +1187,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
       _id: c._id.toString(),
       name: c.name || "Customer",
       phone: c.phone,
+      category: c.category || "General",
       leadStatus: c.leadStatus || "New",
       interestedProject: c.interestedProject || null,
       city: c.city || "",
@@ -1191,6 +1205,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
         _id: inq._id.toString(),
         name: inq.name || "Inquiry Lead",
         phone: inq.phone,
+        category: "General",
         leadStatus: inq.status || "New",
         interestedProject: inq.project || null,
         city: "",
@@ -1209,6 +1224,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
         _id: cb._id.toString(),
         name: cb.name || "Callback Lead",
         phone: cb.phone,
+        category: "General",
         leadStatus: cb.status || "New",
         interestedProject: cb.project || null,
         city: "",
@@ -1223,6 +1239,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
     data: Array.from(uniqueAudience.values())
   });
 });
+
 
 /**
  * GET /api/admin/crm/campaigns
