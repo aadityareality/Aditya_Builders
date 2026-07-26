@@ -928,7 +928,14 @@ export const receiveWebhook = async (req, res) => {
         const lowerText = textBody.toLowerCase();
 
         // ── Main Menu Command Trigger (Part 2 & 12) ───────────────────────────
-        if (["menu", "home", "start", "restart", "reset", "0", "hey", "hello", "hi", "namaste", "hi aditya"].includes(lowerText)) {
+        // Greetings only reset state if user is NOT mid-conversation
+        const greetingWords = ["menu", "home", "start", "restart", "reset", "hey", "hello", "hi", "namaste", "hi aditya"];
+        const hardResetWords = ["menu", "home", "start", "restart", "reset", "0"];
+        const isGreeting = greetingWords.includes(lowerText);
+        const isHardReset = hardResetWords.includes(lowerText);
+
+        if (isHardReset || (isGreeting && !state)) {
+          // Hard reset words always reset; greetings only reset when no active flow
           await ConversationState.deleteOne({ phone: from });
           await sendWelcomeMenu(from, message.id);
           if (logDoc) {
@@ -1269,7 +1276,15 @@ const handleProjectListing = async (phone, textBody, state, customerName, messag
   const idx = parseInt(textBody, 10) - 1;
 
   if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
-    await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the list:");
+    const validCount = data.projectList.length;
+    // Reload project names to re-display the list
+    const projects = await Project.find({ _id: { $in: data.projectList } }).sort({ displayOrder: 1 });
+    const listText = projects.map((p, i) => `${i + 1}. ${p.title}`).join("\n");
+    await sendBotReply(
+      phone,
+      messageId,
+      `Please reply with a number between 1 and ${validCount}:\n\n${listText}\n\n(Send *menu* to go back to main menu)`
+    );
     return;
   }
 
