@@ -154,16 +154,70 @@ const projectsData = [
     displayOrder: 3,
     saleableArea: { minSqFt: 1100, maxSqFt: 1500 },
   },
+  {
+    title:         "Aaditya Icon",
+    slug:          "aaditya-icon",
+    type:          "Residential",
+    configuration: "2 BHK Apartment",
+    status:        "Ongoing",
+    location:      "Plot No. 9, R.S. No. 209 Paiky, T.p.s. 24 Desainagar, Bhavnagar",
+    description:
+      "A BRIGHTER WAY HOME — Designed to welcome natural light, thoughtful spaces, and everyday comfort creating a home that feels uplifting, peaceful, and truly yours.",
+    startingPrice:  "",
+    possessionDate: "Dec 2027",
+    contactNumbers: ["+91 94269 19634"],
+    amenities: [
+      "Attractive Entry/Exit Gate",
+      "Sit Out Area",
+      "Fire Safety System",
+      "CCTV Camera",
+      "Security Cabin",
+      "Car Parking",
+      "Solar Panel (Common Area)",
+      "Adani Gas Line",
+      "Meter Room",
+      "2 High Speed Lift",
+      "24 Hrs. Water",
+      "DTH & TV Cable Connection",
+      "Common Toilet"
+    ],
+    coverImage: {
+      url:      "https://res.cloudinary.com/dcysihl0/image/upload/v1785072148/adityabuilders/aaditya_icon/aaditya_icon_main.png",
+      publicId: "adityabuilders/aaditya_icon/aaditya_icon_main",
+    },
+    gallery: [
+      { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072148/adityabuilders/aaditya_icon/aaditya_icon_main.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_main" },
+      { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072152/adityabuilders/aaditya_icon/aaditya_icon_plans.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_plans" },
+      { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072156/adityabuilders/aaditya_icon/aaditya_icon_amenities.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_amenities" },
+    ],
+    isFeatured:   true,
+    isActive:     true,
+    displayOrder: 4,
+    saleableArea: { minSqFt: 1150, maxSqFt: null },
+  },
 ];
 
 // ── Gallery Images ─────────────────────────────────────────────────────────────
 const galleryData = [
   {
-    title:        "Day View Elevation — Aaditya Elegance",
+    title:        "Aaditya Icon Main Elevation",
     category:     "Exterior",
-    image:        { url: "https://res.cloudinary.com/dclc4tor2/image/upload/v1783418933/aaditya_elegance/media__1783414692421.png", publicId: "aaditya_elegance/media__1783414692421" },
+    image:        { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072148/adityabuilders/aaditya_icon/aaditya_icon_main.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_main" },
     displayOrder: 1,
   },
+  {
+    title:        "Aaditya Icon Floor Plans & Layout",
+    category:     "Other",
+    image:        { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072152/adityabuilders/aaditya_icon/aaditya_icon_plans.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_plans" },
+    displayOrder: 2,
+  },
+  {
+    title:        "Aaditya Icon Curated Amenities",
+    category:     "Exterior",
+    image:        { url: "https://res.cloudinary.com/dcysihl0/image/upload/v1785072156/adityabuilders/aaditya_icon/aaditya_icon_amenities.png", publicId: "adityabuilders/aaditya_icon/aaditya_icon_amenities" },
+    displayOrder: 3,
+  },
+
   {
     title:        "Night View Elevation — Aaditya Elegance",
     category:     "Exterior",
