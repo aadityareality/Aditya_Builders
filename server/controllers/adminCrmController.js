@@ -1266,3 +1266,27 @@ export const deleteCampaign = catchAsync(async (req, res) => {
   }
   res.status(200).json({ success: true, message: "Campaign deleted" });
 });
+
+/**
+ * POST /api/admin/crm/categories/rename
+ * Bulk update category name across all customers
+ */
+export const renameCategory = catchAsync(async (req, res) => {
+  const { oldCategory, newCategory } = req.body;
+
+  if (!oldCategory || !oldCategory.trim() || !newCategory || !newCategory.trim()) {
+    return res.status(400).json({ success: false, message: "oldCategory and newCategory are required" });
+  }
+
+  const result = await Customer.updateMany(
+    { category: oldCategory.trim() },
+    { $set: { category: newCategory.trim() } }
+  );
+
+  res.status(200).json({
+    success: true,
+    message: `Renamed category "${oldCategory}" to "${newCategory}" for ${result.modifiedCount} contact(s).`,
+    modifiedCount: result.modifiedCount
+  });
+});
+

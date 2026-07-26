@@ -16,10 +16,17 @@ export default function WhatsAppBroadcast() {
   const [selectedIds, setSelectedIds] = useState([]);
   
   // Categories management
-  const [customCategories, setCustomCategories] = useState(["AURA", "SKYLINE", "ELEGANCE", "General"]);
-  const [selectedCategories, setSelectedCategories] = useState([]); // multi-selected categories e.g. ["AURA", "SKYLINE"]
+  const [customCategories, setCustomCategories] = useState([
+    "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+  ]);
+  const [selectedCategories, setSelectedCategories] = useState([]); // multi-selected categories
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  // Rename Category Modal State
+  const [renamingCategory, setRenamingCategory] = useState(null); // old category name string
+  const [renameInputValue, setRenameInputValue] = useState("");
+  const [savingRename, setSavingRename] = useState(false);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,7 +41,7 @@ export default function WhatsAppBroadcast() {
   const [uploadFilename, setUploadFilename] = useState("");
   
   // Progress tracker
-  const [progress, setProgress] = useState(null); // { current, total, success, failure }
+  const [progress, setProgress] = useState(null);
   const [activeCampaignId, setActiveCampaignId] = useState(null);
   const [campaignStatus, setCampaignStatus] = useState("");
   const activeCampaignIdRef = useRef(null);
@@ -119,7 +126,9 @@ export default function WhatsAppBroadcast() {
         setCustomers(data.data);
 
         // Collect all categories dynamically from customer records
-        const foundCategories = new Set(["AURA", "SKYLINE", "ELEGANCE", "General"]);
+        const foundCategories = new Set([
+          "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+        ]);
         data.data.forEach(c => {
           if (c.category && c.category.trim()) {
             foundCategories.add(c.category.trim());
@@ -218,6 +227,45 @@ export default function WhatsAppBroadcast() {
     toast.success(`Category "${cat}" created!`);
   };
 
+  const handleOpenRenameCategoryModal = (cat, e) => {
+    if (e) e.stopPropagation();
+    setRenamingCategory(cat);
+    setRenameInputValue(cat);
+  };
+
+  const handleRenameCategorySubmit = async (e) => {
+    e.preventDefault();
+    if (!renamingCategory || !renameInputValue.trim()) return;
+    const newCat = renameInputValue.trim().toUpperCase();
+
+    if (newCat === renamingCategory) {
+      setRenamingCategory(null);
+      return;
+    }
+
+    setSavingRename(true);
+    try {
+      const { data } = await api.post("/admin/crm/categories/rename", {
+        oldCategory: renamingCategory,
+        newCategory: newCat
+      });
+
+      if (data.success) {
+        toast.success(data.message || `Renamed category to ${newCat}!`);
+        // Update selectedCategories state if old category was selected
+        setSelectedCategories(prev => 
+          prev.map(c => c === renamingCategory ? newCat : c)
+        );
+        setRenamingCategory(null);
+        await fetchAudience();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to rename category.");
+    } finally {
+      setSavingRename(false);
+    }
+  };
+
   const handleOpenEditModal = (c, e) => {
     if (e) e.stopPropagation();
     setEditingCustomer(c);
@@ -265,7 +313,9 @@ export default function WhatsAppBroadcast() {
 
         if (audienceRes.data?.success && audienceRes.data?.data) {
           setCustomers(audienceRes.data.data);
-          const foundCategories = new Set(["AURA", "SKYLINE", "ELEGANCE", "General"]);
+          const foundCategories = new Set([
+            "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+          ]);
           audienceRes.data.data.forEach(c => {
             if (c.category && c.category.trim()) {
               foundCategories.add(c.category.trim());
@@ -342,7 +392,7 @@ export default function WhatsAppBroadcast() {
   });
 
   // Valid contacts with non-blank phone numbers in the filtered view
-  const validFilteredCustomers = filteredCustomers.filter(c => c.phone && c.phone.trim().length >= 10);
+  const validFilteredCustomers = filteredCustomers.filter(c => c.phone && c.phone.trim().length >= 10 && !c.phone.startsWith("BLANK_"));
 
   const toggleCategorySelection = (cat) => {
     setSelectedCategories(prev => {
@@ -357,7 +407,6 @@ export default function WhatsAppBroadcast() {
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      // Only select contacts that have valid numbers!
       setSelectedIds(validFilteredCustomers.map(c => c._id));
     } else {
       setSelectedIds([]);
@@ -468,7 +517,7 @@ export default function WhatsAppBroadcast() {
         <div>
           <h1 className="!text-xl md:!text-2xl font-bold text-[#2E2A26]">WhatsApp Marketing Campaigns</h1>
           <p className="text-xs text-[#6B625A] mt-1">
-            Manage category-wise contact lists, edit names & numbers, and broadcast campaign updates to single or multiple categories simultaneously.
+            Manage category-wise contact lists, edit names, numbers & categories, and broadcast campaign updates to single or multiple categories simultaneously.
           </p>
         </div>
       </div>
@@ -492,7 +541,7 @@ export default function WhatsAppBroadcast() {
           </button>
         </div>
 
-        {/* Multi-Select Category Pills */}
+        {/* Multi-Select Category Pills with Edit Category Name Icon */}
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -510,24 +559,40 @@ export default function WhatsAppBroadcast() {
             const isSelected = selectedCategories.includes(cat);
             const catCount = customers.filter(c => (c.category || "General") === cat).length;
             return (
-              <button
+              <div
                 key={cat}
-                type="button"
-                onClick={() => toggleCategorySelection(cat)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all border ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold transition-all border ${
                   isSelected
                     ? "bg-[#F5A623] text-white border-[#F5A623] shadow-sm"
                     : "bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50"
                 }`}
               >
-                {isSelected && <FiCheck className="w-3.5 h-3.5 stroke-[3]" />}
-                <span>{cat}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
-                }`}>
-                  {catCount}
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => toggleCategorySelection(cat)}
+                  className="flex items-center gap-1.5 py-0.5 outline-none"
+                >
+                  {isSelected && <FiCheck className="w-3.5 h-3.5 stroke-[3]" />}
+                  <span>{cat}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
+                  }`}>
+                    {catCount}
+                  </span>
+                </button>
+                
+                {/* Rename Category Edit Icon */}
+                <button
+                  type="button"
+                  onClick={(e) => handleOpenRenameCategoryModal(cat, e)}
+                  className={`p-1 rounded-md transition-colors ${
+                    isSelected ? "hover:bg-white/20 text-white" : "hover:bg-amber-100 text-amber-800"
+                  }`}
+                  title={`Rename Category "${cat}"`}
+                >
+                  <FiEdit2 className="w-3 h-3" />
+                </button>
+              </div>
             );
           })}
         </div>
@@ -681,7 +746,7 @@ export default function WhatsAppBroadcast() {
                   </tr>
                 ) : (
                   filteredCustomers.map((c) => {
-                    const hasValidPhone = Boolean(c.phone && c.phone.trim().length >= 10);
+                    const hasValidPhone = Boolean(c.phone && c.phone.trim().length >= 10 && !c.phone.startsWith("BLANK_"));
                     const isChecked = selectedIds.includes(c._id);
                     return (
                       <tr 
@@ -967,7 +1032,7 @@ export default function WhatsAppBroadcast() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. VIP_CLIENTS, SKYLINE, AURA"
+                  placeholder="e.g. VIP_CLIENTS, ICON, ELEGANCE"
                   value={newCategoryName}
                   onChange={(e) => setNewCategoryName(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none"
@@ -993,7 +1058,59 @@ export default function WhatsAppBroadcast() {
         </div>
       )}
 
-      {/* MODAL 2: Edit Contact Modal */}
+      {/* MODAL 2: Rename Category Modal */}
+      {renamingCategory && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-xl border border-amber-100 text-left">
+            <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+              <h3 className="font-extrabold text-sm text-[#2E2A26] uppercase tracking-wider">Rename Category</h3>
+              <button type="button" onClick={() => setRenamingCategory(null)} className="text-gray-400 hover:text-gray-600">
+                <FiX className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleRenameCategorySubmit} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-[#6B625A] mb-1">Current Name</label>
+                <input
+                  type="text"
+                  disabled
+                  value={renamingCategory}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-gray-100 text-gray-500 font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-[#6B625A] mb-1">New Category Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. AADITYA ICON"
+                  value={renameInputValue}
+                  onChange={(e) => setRenameInputValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:ring-1 focus:ring-amber-500 focus:border-amber-500 outline-none font-bold"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRenamingCategory(null)}
+                  className="px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingRename}
+                  className="px-4 py-1.5 text-xs font-bold bg-[#F5A623] hover:bg-[#E8871E] text-white rounded-xl shadow-sm disabled:opacity-50"
+                >
+                  {savingRename ? "Renaming..." : "Save Name"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Edit Contact Modal */}
       {editingCustomer && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-amber-100 text-left">
@@ -1057,7 +1174,7 @@ export default function WhatsAppBroadcast() {
         </div>
       )}
 
-      {/* MODAL 3: Add Customer Modal */}
+      {/* MODAL 4: Add Customer Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-amber-100 text-left">

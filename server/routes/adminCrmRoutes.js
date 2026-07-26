@@ -20,6 +20,7 @@ import {
   getBroadcastAudience,
   getCampaignHistory,
   deleteCampaign,
+  renameCategory,
 } from "../controllers/adminCrmController.js";
 
 const router = express.Router();
@@ -47,6 +48,8 @@ router.post("/broadcast", sendCrmBroadcast);
 router.get("/broadcast/audience", getBroadcastAudience);
 router.get("/campaigns", getCampaignHistory);
 router.delete("/campaigns/:id", deleteCampaign);
+router.post("/categories/rename", renameCategory);
+
 
 // ── Customer Routes ───────────────────────────────────────────────────────────
 router.post("/customers", createCustomer);

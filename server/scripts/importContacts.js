@@ -225,7 +225,6 @@ const adityaStSocietyContacts = [
 ];
 
 const shreejiContacts = [
-  // Part 1
   { name: "MONTUBHAI", phone: "9725454581" },
   { name: "SANDIP", phone: "9724362936" },
   { name: "AVNIBEN", phone: "9924043300" },
@@ -262,8 +261,6 @@ const shreejiContacts = [
   { name: "MAHESH MER", phone: "9879477387" },
   { name: "ABHISHEKBHAI", phone: "9429094244" },
   { name: "DHRUVBHAI", phone: "9925711523" },
-
-  // Part 2
   { name: "HARESH DABHI", phone: "9725522246" },
   { name: "SHAILESH BHAGAT", phone: "9924711847" },
   { name: "MANISHDADA", phone: "9228741480" },
@@ -304,6 +301,151 @@ const shreejiContacts = [
   { name: "BHAVESH CHUDASAMA", phone: "9913331371" },
   { name: "HITESHBHAI", phone: "9376475503" },
   { name: "NILESHBHAI RATHOD", phone: "8140989309" }
+];
+
+const eleganceContacts = [
+  { name: "PRAKASHBHAI MAKWANA", phone: "6352659165" },
+  { name: "MANTHAM JOSHI", phone: "9714507167" },
+  { name: "MANISHBHAI JOSHU", phone: "9875028075" },
+  { name: "NIDHIBEN PATEL", phone: "8320617702" },
+  { name: "MUKUNDBHAI SONI", phone: "9924246311" },
+  { name: "NIRAV", phone: "9377531531" },
+  { name: "PANKAJBHAU UPADHYAI", phone: "9909989250" },
+  { name: "KETANBHAI PATEL", phone: "9428051815" },
+  { name: "NARESHBHAI SIDDHPURA", phone: "9426902657" },
+  { name: "JAYESHBHAI SONI", phone: "6355716667" },
+  { name: "NARESHBHAI RATHOD", phone: "9723120842" },
+  { name: "DARSHAKBHAI SONI", phone: "9879362536" },
+  { name: "CHENTANBHAI KUNCHA", phone: "9824776172" },
+  { name: "BHAVINBHAI BAROT", phone: "9099520666" },
+  { name: "POOJA GOSAI", phone: "7405226105" },
+  { name: "VALLABHBHAI DADVA", phone: "9879326222" },
+  { name: "RAVI", phone: "9909502083" },
+  { name: "CHIRAGBHAI GOHEL", phone: "9510981633" },
+  { name: "DINESHBHAI VASOYA", phone: "9925375447" },
+  { name: "HITARTH RATHOD", phone: "7777975444" },
+  { name: "LABHUBHAI SOLANKI", phone: "9725608761" },
+  { name: "JULABEN PATEL", phone: "7493939393" },
+  { name: "BHADRESHBHAI GAOUSHWAMI", phone: "9924983150" },
+  { name: "PARTH DHAMELIYA", phone: "9974693874" },
+  { name: "DARSHANBHAI MANGUKIYA", phone: "9879378757" },
+  { name: "YASH MEHTA", phone: "9924773535" },
+  { name: "YASH JOSHI", phone: "8000221093" },
+  { name: "JAYPALBHAI", phone: "7383730572" },
+  { name: "DEV TRIVEDI", phone: "7984856773" },
+  { name: "RAVINDRA AMBLANI", phone: "9106933004" },
+  { name: "KAMLESH KAVA", phone: "9824511160" },
+  { name: "SAVJIBHAI PATEL", phone: "9828181090" },
+  { name: "NAYANBHAI PARMAR", phone: "8734053453" },
+  { name: "BHAVESHBHAI", phone: "9714680049" },
+  { name: "NIKHILBHAI PATEL", phone: "8264146250" },
+  { name: "JAY VAGHASIYA", phone: "9601084740" },
+  { name: "KALPEHSBHAI", phone: "9099887769" }
+];
+
+const iconContacts = [
+  // Page 2
+  { name: "MANISH SOLANKI", phone: "9601959995" },
+  { name: "MEGNABEN", phone: "7405098443" },
+  { name: "ALPESH PANDYA", phone: "9727687951" },
+  { name: "AMIT PARMAR", phone: "9909162656" },
+  { name: "KISHAN", phone: "6352898941" },
+  { name: "MAHEBHAI BHATT", phone: "9998625128" },
+  { name: "HIRABHAI SOLANKI", phone: "9723399647" },
+  { name: "JAGDISBHAI GAUSHAMI", phone: "9099356306" },
+  { name: "RAJESHBHAI JAGRA", phone: "9714739760" },
+  { name: "KARANSINH RAVAT", phone: "7878418180" },
+  { name: "MAHESH MAKWANA", phone: "9737667886" },
+  { name: "OM DODIYA", phone: "9898590648" },
+  { name: "RAJESH PRAJAPATI", phone: "8511193985" },
+  { name: "SHIVAM MISTRI", phone: "7863837383" },
+  { name: "JIGNESH MISTRI", phone: "7043373537" },
+  { name: "DINESH MISTRI", phone: "9925056397" },
+  { name: "JITU DODIYA", phone: "9909794300" },
+  { name: "PRAKASH SIDHURA", phone: "9869330911" },
+  { name: "HARESH PARMAR", phone: "9173225305" },
+  { name: "AMIT", phone: "9974800300" },
+  { name: "SHAILESH", phone: "9426228922" },
+  { name: "ASHOKBHAI PUROHIT", phone: "9426261132" },
+  { name: "MEHUL", phone: "7698902867" },
+  { name: "PRAKASH CHAUHAN", phone: "6355683899" },
+  { name: "RAJU RATHOD", phone: "9824335005" },
+  { name: "PRAVINBHAI TRIVEDI", phone: "8200748065" },
+  { name: "SHNEHBHAI", phone: "9510806702" },
+  { name: "SANJAY", phone: "8264658661" },
+  { name: "RAMDEV RATHOD", phone: "8264323232" },
+  { name: "BIPIN PRAJPATI", phone: "9879908590" },
+  { name: "YASH RA", phone: "9824725218" },
+  { name: "KIRIT KANJIYA", phone: "9328180418" },
+  { name: "RAJ MAKWANA", phone: "7990177461" },
+  { name: "CHETAN RATHOD", phone: "9834353711" },
+  { name: "RAKESH PARMAR", phone: "9737749090" },
+  { name: "BHARAT SOLANKI", phone: "7621840466" },
+
+  // Page 3
+  { name: "HITESH MAKWNA", phone: "6352003506" },
+  { name: "RAHUL", phone: "8780808585" },
+  { name: "HARESH DALSANIYA", phone: "9904740305" },
+  { name: "AKSHAR PATEL", phone: "8200468895" },
+  { name: "YATINBHAI CHUDASAMA", phone: "8154884133" },
+  { name: "NILAMBEN JOSHI", phone: "9825485508" },
+  { name: "GAURANGBHAI DARJI", phone: "8200199393" },
+  { name: "HARESH DABHI", phone: "9725522246" },
+  { name: "VARSHABEN", phone: "9998418199" },
+  { name: "ARVIND JETHVA", phone: "9624193018" },
+  { name: "TARABEN PATEL", phone: "9904441288" },
+  { name: "BHAVESH VAJA", phone: "9714389033" },
+  { name: "RAISANGBHAI", phone: "9106938606" },
+  { name: "PARESHBHAI", phone: "9426439729" },
+  { name: "SHAILESHBHAI JAGAR", phone: "9825599449" },
+  { name: "PARAGBHAI MEHTA", phone: "9429582857" },
+  { name: "BABUL MISTRI", phone: "9825603378" },
+  { name: "RAJESH KALJANIYA", phone: "9898924466" },
+  { name: "VIMAL DAVE", phone: "8780333474" },
+  { name: "HARSINH DODIYA", phone: "9429211087" },
+  { name: "JAGDISH NAYNA", phone: "9879061319" },
+  { name: "VIJAY MAKWANA", phone: "9924771604" },
+  { name: "AGRAVATBHAI", phone: "9879503550" },
+  { name: "JANIBHAI", phone: "8200191726" },
+  { name: "JEELBHAI", phone: "8140513149" },
+  { name: "VINODBHAI PARMAR", phone: "9846916833" },
+  { name: "SANJAYBHAI MAKWANA", phone: "9737222325" },
+  { name: "ARPITBHAI", phone: "9913866090" },
+  { name: "RAJU MAKWANA", phone: "8460167633" },
+  { name: "JITENDRA MAKWANA", phone: "9723931096" },
+  { name: "PRAKASH JOSHI", phone: "9426970240" },
+  { name: "DILIP DARJI", phone: "9879973387" },
+  { name: "HASMUKH UPADHYAY", phone: "9998409630" },
+  { name: "DHIRUBHAI PARMAR", phone: "9228589997" },
+  { name: "JAGDISHBHAI MAHARAJ", phone: "8306925454" },
+  { name: "MANOJBHAI BHAT", phone: "9426260900" },
+  { name: "PRATIKBHAI RATHOD", phone: "9327193113" },
+  { name: "VISHAL PANDYA", phone: "7016385738" },
+  { name: "ANKITBHAI", phone: "9724245102" },
+  { name: "MITESHBHAI MAKWANA", phone: "9724904002" },
+
+  // Page 4
+  { name: "MEHULBHAI JANI", phone: "9974128304" },
+  { name: "MAHESHBHAI GOHIL", phone: "9924869372" },
+  { name: "PRATIKBHAI GUPTA", phone: "9724047659" },
+  { name: "NILESHBHAI PATEL", phone: "9904267150" },
+  { name: "SHRIKANTBHAI", phone: "7021171424" },
+  { name: "PRAKASH THAKOR", phone: "7046653303" },
+  { name: "HARESH RATHOD", phone: "9898303680" },
+  { name: "VISHAL DHOLAKIYA", phone: "8866518575" },
+  { name: "PARTH OZA", phone: "9558314645" },
+  { name: "ALKABEN BHATT", phone: "9426163032" },
+  { name: "NAMAN BHATT", phone: "7201994191" },
+  { name: "RAJESH BHATT", phone: "9823183270" },
+  { name: "DIPAK SHAH", phone: "9825469533" },
+  { name: "PANKAJ", phone: "9913387838" },
+  { name: "HARSHDA JOSHI", phone: "9426584141" },
+  { name: "JEMINBHAI BHATT", phone: "7016115161" },
+  { name: "MEHULBHAI RAJYAGURU", phone: "9033795478" },
+  { name: "KALPESHBHAI MAKWANA", phone: "8866892669" },
+  { name: "ABHISHEK PADIYA", phone: "7405740522" },
+  { name: "DILIPBHAI PATEL", phone: "9925125368" },
+  { name: "BHARAT", phone: "9106707026" }
 ];
 
 async function importAllCategoryContacts() {
@@ -383,7 +525,6 @@ async function importAllCategoryContacts() {
           { upsert: true }
         );
       } else {
-        // Blank number
         const existingBlank = await Customer.findOne({ name: c.name.trim(), category: "DREAMLAND" });
         if (!existingBlank) {
           const blankPhone = `BLANK_${Date.now()}`;
@@ -396,7 +537,6 @@ async function importAllCategoryContacts() {
         }
       }
     }
-
 
     // 5. ADITYA ST SOCIETY
     console.log(`Importing ${adityaStSocietyContacts.length} ADITYA ST SOCIETY contacts...`);
@@ -434,7 +574,43 @@ async function importAllCategoryContacts() {
       );
     }
 
-    console.log("✅ All category contacts successfully imported into MongoDB!");
+    // 7. ELEGANCE
+    console.log(`Importing ${eleganceContacts.length} ELEGANCE contacts...`);
+    for (const c of eleganceContacts) {
+      const cleanPhone = c.phone.replace(/[^0-9]/g, "");
+      await Customer.updateOne(
+        { phone: cleanPhone },
+        {
+          $set: {
+            name: c.name.trim(),
+            phone: cleanPhone,
+            category: "ELEGANCE",
+            source: "Imported"
+          }
+        },
+        { upsert: true }
+      );
+    }
+
+    // 8. ICON
+    console.log(`Importing ${iconContacts.length} ICON contacts...`);
+    for (const c of iconContacts) {
+      const cleanPhone = c.phone.replace(/[^0-9]/g, "");
+      await Customer.updateOne(
+        { phone: cleanPhone },
+        {
+          $set: {
+            name: c.name.trim(),
+            phone: cleanPhone,
+            category: "ICON",
+            source: "Imported"
+          }
+        },
+        { upsert: true }
+      );
+    }
+
+    console.log("✅ ELEGANCE and ICON category contacts successfully imported into MongoDB!");
     process.exit(0);
   } catch (err) {
     console.error("❌ Error importing contacts:", err);
