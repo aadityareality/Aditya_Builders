@@ -32,16 +32,18 @@ export const checkActiveSession = async (toPhone) => {
     const cleanPhone = toPhone.replace(/[^0-9]/g, "");
     if (!cleanPhone) return false;
 
-    // Look up customer by phone (handles suffix matching for the last 10 digits)
-    const customer = await Customer.findOne({
+    // Look up all matching customer records by last 10 digits
+    const customers = await Customer.find({
       phone: { $regex: new RegExp(cleanPhone.slice(-10) + "$") }
     });
-    if (!customer) return false;
+    if (!customers || customers.length === 0) return false;
 
-    const chat = await Chat.findOne({ customer: customer._id });
-    if (!chat) return false;
+    const customerIds = customers.map(c => c._id);
+    const chats = await Chat.find({ customer: { $in: customerIds } });
+    if (!chats || chats.length === 0) return false;
 
-    const lastIncoming = await Message.findOne({ chat: chat._id, direction: "incoming" })
+    const chatIds = chats.map(c => c._id);
+    const lastIncoming = await Message.findOne({ chat: { $in: chatIds }, direction: "incoming" })
       .sort({ timestamp: -1 });
 
     if (!lastIncoming) return false;
@@ -111,11 +113,18 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     return customer ? customer.name : "Client";
   };
 
+  const formatForTemplate = (rawText) => {
+    return rawText
+      .replace(/[\r\n]+/g, " | ")
+      .replace(/\t+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  };
+
   if (!activeSession) {
     console.log(`⚠️ No active session for ${formattedPhone}. Routing via client_greeting template...`);
     const name = await resolveName();
-    // Preserve newlines — Meta allows \n in template body parameters
-    const cleanedText = text.replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
+    const cleanedText = formatForTemplate(text);
     return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
@@ -127,7 +136,7 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     ]);
   }
 
-  // Active session: send free-form with greeting prepended
+  // Active session: send free-form with greeting prepended (preserves original line breaks)
   const name = await resolveName();
   const fullText = `hello, ${name} !\n\n${text}`;
   const payload = {
@@ -143,7 +152,7 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
       console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to client_greeting template...`);
-      const cleanedText = text.replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
+      const cleanedText = formatForTemplate(text);
       return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
@@ -157,6 +166,7 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     throw err;
   }
 };
+
 
 /**
  * Send template message

@@ -799,7 +799,8 @@ export const receiveWebhook = async (req, res) => {
     const msg = value?.messages?.[0];
     if (msg && msg.id) {
       const duplicateLog = await WebhookLog.findOne({
-        "payload.entry.changes.value.messages.id": msg.id
+        "payload.entry.changes.value.messages.id": msg.id,
+        processed: true
       });
       if (duplicateLog) {
         console.log(`\x1b[33m[Chatbot] Duplicate webhook detected for message ID: ${msg.id}. Ignoring.\x1b[0m`);
