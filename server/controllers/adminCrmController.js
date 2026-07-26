@@ -1118,10 +1118,6 @@ export const sendCrmBroadcast = catchAsync(async (req, res) => {
           emitToAdmins("message_new", { chatId: chat._id, message: populatedMsg }, customer.assignedExecutive, chat._id);
 
           successCount++;
-        } else {
-          failureCount++;
-          errors.push(`Customer ${customerId} not found`);
-        }
       } catch (err) {
         console.error(`❌ Broadcast dispatch failed for customer ${customerId}:`, err.stack);
         failureCount++;
