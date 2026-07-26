@@ -79,12 +79,10 @@ const generateMockCompletion = (systemPrompt, userPrompt) => {
   if (text.includes("rera")) {
     return "RERA stands for Real Estate Regulatory Authority. All our ongoing projects like Aaditya Elegance and Aaditya Skyline are fully registered under Gujarat RERA.";
   }
-  if (text.includes("price") || text.includes("how much") || text.includes("cost")) {
-    if (text.includes("elegance")) return "Aaditya Elegance starts from ₹31.20 Lakh onwards for 2/3 BHK units.";
-    if (text.includes("skyline")) return "Aaditya Skyline starts from ₹24.50 Lakh onwards for 2 BHK units.";
-    if (text.includes("shreeji")) return "Shreeji Aaditya starts from ₹18.75 Lakh onwards for 2 BHK units.";
-    return "Our projects starting prices range from ₹18.75 Lakh onwards. For example, Aaditya Skyline starts at ₹24.50 Lakh, and Aaditya Elegance starts at ₹31.20 Lakh.";
+  if (text.includes("price") || text.includes("how much") || text.includes("cost") || text.includes("pricing") || text.includes("ketla") || text.includes("kitna") || text.includes("rate")) {
+    return "For exact pricing details and special offers, please connect directly with our sales team! 📞 Call or WhatsApp: +91 99748 58500";
   }
+
   if (text.includes("possession") || text.includes("ready")) {
     return "We have both ready and ongoing options. Aaditya Elegance is expected to be delivered by Dec 2026, Aaditya Skyline by Mar 2027, and Shreeji Aaditya was completed in Jun 2023.";
   }
