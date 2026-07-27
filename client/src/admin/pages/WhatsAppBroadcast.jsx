@@ -270,7 +270,7 @@ export default function WhatsAppBroadcast() {
     if (e) e.stopPropagation();
     setEditingCustomer(c);
     setEditName(c.name || "");
-    setEditPhone(c.phone || "");
+    setEditPhone(c.phone && !c.phone.startsWith("BLANK_") ? c.phone : "");
     setEditCategory(c.category || "General");
   };
 
@@ -757,12 +757,8 @@ export default function WhatsAppBroadcast() {
                     return (
                       <tr 
                         key={c._id}
-                        className={`hover:bg-amber-50/10 transition-colors ${
-                          !hasValidPhone 
-                            ? "bg-red-50/30 text-gray-400 opacity-60" 
-                            : isChecked 
-                              ? "bg-amber-50/30" 
-                              : ""
+                        className={`hover:bg-amber-50/20 transition-colors ${
+                          isChecked ? "bg-amber-50/40" : !hasValidPhone ? "bg-amber-50/10" : ""
                         }`}
                         onClick={() => handleToggleSelect(c._id, hasValidPhone)}
                       >
@@ -772,7 +768,7 @@ export default function WhatsAppBroadcast() {
                             disabled={!hasValidPhone}
                             checked={isChecked}
                             onChange={() => handleToggleSelect(c._id, hasValidPhone)}
-                            className="rounded text-amber-500 focus:ring-amber-400 disabled:opacity-30"
+                            className="rounded text-amber-500 focus:ring-amber-400 disabled:opacity-30 cursor-pointer"
                           />
                         </td>
                         <td className="p-3 font-bold text-gray-900">
@@ -782,8 +778,8 @@ export default function WhatsAppBroadcast() {
                           {hasValidPhone ? (
                             <span className="font-mono text-gray-800 font-bold">{c.phone}</span>
                           ) : (
-                            <span className="text-red-500 italic text-[10px] flex items-center gap-1">
-                              <FiAlertCircle className="w-3 h-3" /> Blank (No Number - Skipped)
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200/80 text-[10px] font-bold">
+                              <FiAlertCircle className="w-3 h-3 text-amber-600" /> Empty Mobile Number (Click ✏️ to add)
                             </span>
                           )}
                         </td>
