@@ -199,9 +199,10 @@ export const sendTextMessage = async (to, text, customerName = null) => {
  * @param {Array} components - Array of components for parameter binding
  */
 export const sendTemplateMessage = async (to, templateName, languageCode = "en", components = []) => {
+  const formattedPhone = formatPhoneNumber(to);
   const payload = {
     messaging_product: "whatsapp",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "template",
     template: {
       name: templateName,
@@ -235,7 +236,7 @@ export const markMessageAsRead = async (messageId) => {
  * @param {string} [customerName] - Optional customer name for greeting in template fallback
  */
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
-  const formattedPhone = to.replace(/[^0-9]/g, "");
+  const formattedPhone = formatPhoneNumber(to);
 
   // Always attempt to send the actual image directly.
   const payload = {
@@ -289,7 +290,7 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
  * @param {string} [customerName] - Optional customer name for greeting in template fallback
  */
 export const sendDocument = async (to, documentUrl, filename, caption = "", customerName = null) => {
-  const formattedPhone = to.replace(/[^0-9]/g, "");
+  const formattedPhone = formatPhoneNumber(to);
   const activeSession = await checkActiveSession(formattedPhone);
 
   const resolveDocName = async () => {
@@ -300,15 +301,13 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
   };
 
   if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing document via simple_greeting template...`);
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing document via Meta template...`);
     const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
-    const name = await resolveDocName();
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
       {
         type: "BODY",
         parameters: [
-          { type: "text", text: name },
           { type: "text", text: cleanedText }
         ]
       }
@@ -330,15 +329,13 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying document with simple_greeting template fallback...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying document with template fallback...`);
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
-      const name = await resolveDocName();
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
           parameters: [
-            { type: "text", text: name },
             { type: "text", text: cleanedText }
           ]
         }
@@ -357,9 +354,10 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
  * @param {string} address - Physical address
  */
 export const sendLocation = async (to, latitude, longitude, name, address) => {
+  const formattedPhone = formatPhoneNumber(to);
   const payload = {
     messaging_product: "whatsapp",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "location",
     location: {
       latitude: String(latitude),
@@ -377,6 +375,7 @@ export const sendLocation = async (to, latitude, longitude, name, address) => {
  * @param {Object} contactData - Structural representation of contact card
  */
 export const sendContact = async (to, contactData) => {
+  const formattedPhone = formatPhoneNumber(to);
   const first = contactData.firstName || "";
   const last = contactData.lastName || "";
   const formattedName = contactData.fullName || `${first} ${last}`.trim();
@@ -396,7 +395,7 @@ export const sendContact = async (to, contactData) => {
 
   const payload = {
     messaging_product: "whatsapp",
-    to: to.replace(/[^0-9]/g, ""),
+    to: formattedPhone,
     type: "contacts",
     contacts: [
       {
