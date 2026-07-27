@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { FiMapPin, FiPhone, FiMail, FiInstagram, FiPlus, FiTrash2, FiClock } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaFacebookF } from "react-icons/fa";
 import { submitContactForm, getProjects } from "../services/api.js";
 import { useSiteSettings } from "../context/SiteSettingsContext.jsx";
 import Button from "../components/ui/Button.jsx";
@@ -338,11 +338,22 @@ export default function Contact() {
                 href={settings.instagramUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-10 h-10 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#F5A623] hover:text-white transition-colors"
+                className="w-10 h-10 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#E1306C] hover:text-white transition-colors"
                 aria-label="Instagram Profile"
               >
                 <FiInstagram className="w-5 h-5" />
               </a>
+              {settings.facebookUrl && (
+                <a
+                  href={settings.facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-10 h-10 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#1877F2] hover:text-white transition-colors"
+                  aria-label="Facebook Profile"
+                >
+                  <FaFacebookF className="w-4.5 h-4.5" />
+                </a>
+              )}
               {settings.whatsappNumber && (
                 <a
                   href={`https://wa.me/${settings.whatsappNumber}`}

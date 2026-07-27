@@ -20,7 +20,7 @@ import {
   FiHeart,
   FiX
 } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaFacebookF } from "react-icons/fa";
 import {
   getProjects,
   getTestimonials,
@@ -706,9 +706,9 @@ export default function Home() {
                         </div>
                       )}
 
-                      <div className="mt-auto pt-4 border-t border-amber-50 flex justify-between items-center text-xs">
-                        <span className="font-semibold text-[#6B625A]">{p.location}</span>
-                        <Link to={`/projects/${p.slug}`} className="font-bold text-[#E8871E] hover:underline">
+                      <div className="mt-auto pt-4 border-t border-amber-50 flex justify-between items-end gap-3 text-xs">
+                        <span className="font-medium text-[#6B625A] flex-1 line-clamp-2">{p.location}</span>
+                        <Link to={`/projects/${p.slug}`} className="font-bold text-[#E8871E] hover:underline shrink-0 text-right whitespace-nowrap">
                           More Details →
                         </Link>
                       </div>
@@ -914,18 +914,29 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Whatsapp / Instagram links */}
+              {/* Whatsapp / Instagram / Facebook links */}
               <div className="flex gap-4 items-center bg-[#FFFBF5] rounded-2xl p-5 border border-amber-100/35 text-xs text-[#6B625A]">
                 <span className="font-bold uppercase tracking-wider">Socials:</span>
                 <a
                   href={settings.instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#F5A623] hover:text-white transition-colors"
+                  className="w-9 h-9 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#E1306C] hover:text-white transition-colors"
                   aria-label="Instagram"
                 >
                   <FiInstagram className="w-4.5 h-4.5" />
                 </a>
+                {settings.facebookUrl && (
+                  <a
+                    href={settings.facebookUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-9 h-9 rounded-xl bg-white border border-amber-100 flex items-center justify-center hover:bg-[#1877F2] hover:text-white transition-colors"
+                    aria-label="Facebook"
+                  >
+                    <FaFacebookF className="w-4 h-4" />
+                  </a>
+                )}
                 {settings.whatsappNumber && (
                   <a
                     href={`https://wa.me/${settings.whatsappNumber}`}

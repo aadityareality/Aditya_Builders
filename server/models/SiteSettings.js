@@ -93,12 +93,13 @@ const siteSettingsSchema = new Schema(
     /** Official Instagram profile URL */
     instagramUrl: {
       type: String,
-      default: "https://instagram.com/adityabuilders_",
+      default: "https://www.instagram.com/aadityabuilders_?igsh=ZzV4MWZkYzJ6dTR0",
     },
 
-    /** Facebook page URL (optional) */
+    /** Facebook page URL */
     facebookUrl: {
       type: String,
+      default: "https://www.facebook.com/people/Aditya-Builder/61588172773240/?http_ref=eyJ0syI6MTc4NTEzMDIwNjAwMCwiciI6IiJ9#",
     },
 
     /**
@@ -174,6 +175,19 @@ siteSettingsSchema.statics.getSettings = async function () {
   if (!settings) {
     settings = await this.create({});
     console.log("📋 SiteSettings document created with defaults.");
+  } else {
+    let updated = false;
+    if (!settings.facebookUrl) {
+      settings.facebookUrl = "https://www.facebook.com/people/Aditya-Builder/61588172773240/?http_ref=eyJ0syI6MTc4NTEzMDIwNjAwMCwiciI6IiJ9#";
+      updated = true;
+    }
+    if (settings.instagramUrl !== "https://www.instagram.com/aadityabuilders_?igsh=ZzV4MWZkYzJ6dTR0") {
+      settings.instagramUrl = "https://www.instagram.com/aadityabuilders_?igsh=ZzV4MWZkYzJ6dTR0";
+      updated = true;
+    }
+    if (updated) {
+      await settings.save();
+    }
   }
   return settings;
 };

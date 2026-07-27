@@ -202,9 +202,9 @@ export default function Projects() {
                         </div>
                       )}
 
-                      <div className="mt-auto pt-4 border-t border-amber-50 flex justify-between items-center text-xs">
-                        <span className="font-semibold text-[#6B625A]">{p.location}</span>
-                        <Link to={`/projects/${p.slug}`} className="font-bold text-[#E8871E] hover:underline flex items-center gap-1">
+                      <div className="mt-auto pt-4 border-t border-amber-50 flex justify-between items-end gap-3 text-xs">
+                        <span className="font-medium text-[#6B625A] flex-1 line-clamp-2">{p.location}</span>
+                        <Link to={`/projects/${p.slug}`} className="font-bold text-[#E8871E] hover:underline flex items-center gap-1 shrink-0 text-right whitespace-nowrap">
                           Details →
                         </Link>
                       </div>

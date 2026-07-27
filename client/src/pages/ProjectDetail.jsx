@@ -241,9 +241,9 @@ export default function ProjectDetail() {
                   Specification Details
                 </h3>
                 <div className="flex flex-col gap-3.5 text-xs text-[#6B625A]">
-                  <div className="flex justify-between items-center">
-                    <span className="flex items-center gap-1.5 font-medium"><FiMapPin className="text-[#F5A623]" /> Location</span>
-                    <span className="font-bold text-[#2E2A26]">{project.location}</span>
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-4 pb-2 border-b border-amber-50/50">
+                    <span className="flex items-center gap-1.5 font-medium shrink-0 text-[#6B625A]"><FiMapPin className="text-[#F5A623]" /> Location</span>
+                    <span className="font-bold text-[#2E2A26] sm:text-right flex-1 break-words">{project.location}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="flex items-center gap-1.5 font-medium"><FiInfo className="text-[#F5A623]" /> Configuration</span>

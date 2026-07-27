@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { FiInstagram, FiMail, FiMapPin, FiPhone } from "react-icons/fi";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaWhatsapp, FaFacebookF } from "react-icons/fa";
 import { useSiteSettings } from "../../context/SiteSettingsContext.jsx";
 import logoImg from "../../assets/logo.jpg";
 
@@ -40,16 +40,27 @@ export default function Footer() {
             {settings.aboutUsShort ||
               "Quality + Time = Aditya. Shape premium spaces in Bhavnagar, Gujarat with commitment to customer dreams."}
           </p>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             <a
               href={settings.instagramUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-9 h-9 rounded-full bg-[#3D3732] flex items-center justify-center hover:bg-[#F5A623] text-white hover:text-white transition-colors"
+              className="w-9 h-9 rounded-full bg-[#3D3732] flex items-center justify-center hover:bg-[#E1306C] text-white hover:text-white transition-colors"
               aria-label="Instagram"
             >
               <FiInstagram className="w-4.5 h-4.5" />
             </a>
+            {settings.facebookUrl && (
+              <a
+                href={settings.facebookUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-full bg-[#3D3732] flex items-center justify-center hover:bg-[#1877F2] text-white hover:text-white transition-colors"
+                aria-label="Facebook"
+              >
+                <FaFacebookF className="w-4 h-4" />
+              </a>
+            )}
             {settings.whatsappNumber && (
               <a
                 href={`https://wa.me/${settings.whatsappNumber}`}
