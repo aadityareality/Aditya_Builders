@@ -238,7 +238,6 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   const formattedPhone = to.replace(/[^0-9]/g, "");
 
   // Always attempt to send the actual image directly.
-  // Let WhatsApp's API decide if the session is active — avoids false negatives from checkActiveSession.
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -254,25 +253,27 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      // No active session — fall back to image_broadcast template (sends actual image via HEADER)
-      console.log(`No active session for ${formattedPhone}. Falling back to image_broadcast template...`);
-      const cleanPhone = formattedPhone.slice(-10);
-      const customer = customerName ? null : await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
-      const name = customerName || (customer ? customer.name : "Client");
-      const cleanCaption = (caption || "Check out this image").replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "image_broadcast", "en", [
-        {
-          type: "HEADER",
-          parameters: [{ type: "image", image: { link: imageUrl } }]
-        },
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: name },
-            { type: "text", text: cleanCaption }
-          ]
-        }
-      ]);
+      console.log(`No active session for ${formattedPhone}. Falling back to approved Meta template...`);
+      const cleanCaption = (caption || "Check out this image from Aditya Builders").replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
+      try {
+        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: `${cleanCaption}: ${imageUrl}` }
+            ]
+          }
+        ]);
+      } catch (tErr) {
+        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: cleanCaption }
+            ]
+          }
+        ]);
+      }
     }
     throw err;
   }
