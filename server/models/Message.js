@@ -43,6 +43,10 @@ const messageSchema = new Schema(
       enum: ["sent", "delivered", "read", "seen", "failed"],
       default: "sent",
     },
+    deliveryError: {
+      type: String,
+      default: null,
+    },
     timestamp: {
       type: Date,
       default: Date.now,
