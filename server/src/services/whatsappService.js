@@ -237,8 +237,34 @@ export const markMessageAsRead = async (messageId) => {
  */
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = formatPhoneNumber(to);
+  const activeSession = await checkActiveSession(formattedPhone);
 
-  // Always attempt to send the actual image directly.
+  const cleanCaption = (caption || "Check out this image from Aditya Builders").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+
+  if (!activeSession) {
+    console.log(`No active 24-hr session for ${formattedPhone}. Dispatching image via Meta template...`);
+    try {
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: `${cleanCaption}: ${imageUrl}` }
+          ]
+        }
+      ]);
+    } catch (tErr) {
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: cleanCaption }
+          ]
+        }
+      ]);
+    }
+  }
+
+  // Active 24-hr session: send direct image payload
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -254,27 +280,14 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active session for ${formattedPhone}. Falling back to approved Meta template...`);
-      const cleanCaption = (caption || "Check out this image from Aditya Builders").replace(/\t+/g, " ").replace(/ {2,}/g, " ").trim();
-      try {
-        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: `${cleanCaption}: ${imageUrl}` }
-            ]
-          }
-        ]);
-      } catch (tErr) {
-        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: cleanCaption }
-            ]
-          }
-        ]);
-      }
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: `${cleanCaption}: ${imageUrl}` }
+          ]
+        }
+      ]);
     }
     throw err;
   }
