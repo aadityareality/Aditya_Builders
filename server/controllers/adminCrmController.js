@@ -1184,7 +1184,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
   // 1. Add CRM Customers
   for (const c of crmCustomers) {
     if (!c.phone) continue;
-    const cleanPhone = c.phone.replace(/[^0-9]/g, "");
+    const cleanPhone = c.phone.startsWith("BLANK_") ? c.phone : c.phone.replace(/[^0-9]/g, "");
     uniqueAudience.set(cleanPhone, {
       _id: c._id.toString(),
       name: c.name || "Customer",
