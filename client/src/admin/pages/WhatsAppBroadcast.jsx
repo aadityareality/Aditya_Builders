@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../../hooks/api.js";
 import toast from "react-hot-toast";
-import { 
-  FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers, 
-  FiUpload, FiX, FiTrash2, FiEdit2, FiPlus, FiCheck, FiFilter, FiAlertCircle 
+import {
+  FiSearch, FiSend, FiFileText, FiImage, FiGrid, FiUsers,
+  FiUpload, FiX, FiTrash2, FiEdit2, FiPlus, FiCheck, FiFilter, FiAlertCircle
 } from "react-icons/fi";
 import Loader from "../../components/ui/Loader.jsx";
 import { useSocket } from "../../hooks/useSocket.js";
@@ -14,7 +14,7 @@ export default function WhatsAppBroadcast() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  
+
   // Categories management
   const [customCategories, setCustomCategories] = useState([
     "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
@@ -32,14 +32,14 @@ export default function WhatsAppBroadcast() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedProject, setSelectedProject] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
-  
+
   // Campaign Content
   const [campaignType, setCampaignType] = useState("text"); // text, template, image
   const [messageBody, setMessageBody] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadFilename, setUploadFilename] = useState("");
-  
+
   // Progress tracker
   const [progress, setProgress] = useState(null);
   const [activeCampaignId, setActiveCampaignId] = useState(null);
@@ -253,7 +253,7 @@ export default function WhatsAppBroadcast() {
       if (data.success) {
         toast.success(data.message || `Renamed category to ${newCat}!`);
         // Update selectedCategories state if old category was selected
-        setSelectedCategories(prev => 
+        setSelectedCategories(prev =>
           prev.map(c => c === renamingCategory ? newCat : c)
         );
         setRenamingCategory(null);
@@ -371,23 +371,23 @@ export default function WhatsAppBroadcast() {
 
   // Filter logic
   const filteredCustomers = customers.filter(c => {
-    const matchesSearch = 
+    const matchesSearch =
       (c.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (c.phone || "").includes(searchQuery);
 
-    const matchesProject = 
-      selectedProject === "All" || 
-      (c.interestedProject === selectedProject) || 
+    const matchesProject =
+      selectedProject === "All" ||
+      (c.interestedProject === selectedProject) ||
       (c.interestedProject?._id === selectedProject);
 
-    const matchesStatus = 
-      selectedStatus === "All" || 
+    const matchesStatus =
+      selectedStatus === "All" ||
       c.leadStatus === selectedStatus;
 
-    const matchesCategory = 
-      selectedCategories.length === 0 || 
-      selectedCategories.some(cat => 
-        (c.category || "General") === cat || 
+    const matchesCategory =
+      selectedCategories.length === 0 ||
+      selectedCategories.some(cat =>
+        (c.category || "General") === cat ||
         (Array.isArray(c.tags) && c.tags.includes(cat))
       );
 
@@ -426,7 +426,7 @@ export default function WhatsAppBroadcast() {
       toast.error("Cannot select contact without a valid mobile number.");
       return;
     }
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
   };
@@ -549,29 +549,27 @@ export default function WhatsAppBroadcast() {
           <button
             type="button"
             onClick={() => setSelectedCategories([])}
-            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all border ${
-              selectedCategories.length === 0
+            className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all border ${selectedCategories.length === 0
                 ? "bg-[#2E2A26] text-white border-[#2E2A26] shadow-sm"
                 : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
-            }`}
+              }`}
           >
             All Categories ({customers.length})
           </button>
 
           {customCategories.map(cat => {
             const isSelected = selectedCategories.includes(cat);
-            const catCount = customers.filter(c => 
-              (c.category || "General") === cat || 
+            const catCount = customers.filter(c =>
+              (c.category || "General") === cat ||
               (Array.isArray(c.tags) && c.tags.includes(cat))
             ).length;
             return (
               <div
                 key={cat}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold transition-all border ${
-                  isSelected
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-extrabold transition-all border ${isSelected
                     ? "bg-[#F5A623] text-white border-[#F5A623] shadow-sm"
                     : "bg-white text-gray-700 border-gray-200 hover:border-amber-300 hover:bg-amber-50/50"
-                }`}
+                  }`}
               >
                 <button
                   type="button"
@@ -580,20 +578,18 @@ export default function WhatsAppBroadcast() {
                 >
                   {isSelected && <FiCheck className="w-3.5 h-3.5 stroke-[3]" />}
                   <span>{cat}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
-                  }`}>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
+                    }`}>
                     {catCount}
                   </span>
                 </button>
-                
+
                 {/* Rename Category Edit Icon */}
                 <button
                   type="button"
                   onClick={(e) => handleOpenRenameCategoryModal(cat, e)}
-                  className={`p-1 rounded-md transition-colors ${
-                    isSelected ? "hover:bg-white/20 text-white" : "hover:bg-amber-100 text-amber-800"
-                  }`}
+                  className={`p-1 rounded-md transition-colors ${isSelected ? "hover:bg-white/20 text-white" : "hover:bg-amber-100 text-amber-800"
+                    }`}
                   title={`Rename Category "${cat}"`}
                 >
                   <FiEdit2 className="w-3 h-3" />
@@ -755,11 +751,10 @@ export default function WhatsAppBroadcast() {
                     const hasValidPhone = Boolean(c.phone && c.phone.trim().length >= 10 && !c.phone.startsWith("BLANK_"));
                     const isChecked = selectedIds.includes(c._id);
                     return (
-                      <tr 
+                      <tr
                         key={c._id}
-                        className={`hover:bg-amber-50/20 transition-colors ${
-                          isChecked ? "bg-amber-50/40" : !hasValidPhone ? "bg-amber-50/10" : ""
-                        }`}
+                        className={`hover:bg-amber-50/20 transition-colors ${isChecked ? "bg-amber-50/40" : !hasValidPhone ? "bg-amber-50/10" : ""
+                          }`}
                         onClick={() => handleToggleSelect(c._id, hasValidPhone)}
                       >
                         <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -822,33 +817,30 @@ export default function WhatsAppBroadcast() {
                 <button
                   type="button"
                   onClick={() => setCampaignType("text")}
-                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${
-                    campaignType === "text"
+                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${campaignType === "text"
                       ? "bg-[#F5A623] text-white border-[#F5A623] shadow-sm"
                       : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
+                    }`}
                 >
                   <FiFileText className="w-3.5 h-3.5" /> Text
                 </button>
                 <button
                   type="button"
                   onClick={() => setCampaignType("image")}
-                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${
-                    campaignType === "image"
+                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${campaignType === "image"
                       ? "bg-[#F5A623] text-white border-[#F5A623] shadow-sm"
                       : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
+                    }`}
                 >
                   <FiImage className="w-3.5 h-3.5" /> Image
                 </button>
                 <button
                   type="button"
                   onClick={() => setCampaignType("template")}
-                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${
-                    campaignType === "template"
+                  className={`py-2 text-xs font-bold rounded-xl border flex items-center justify-center gap-1 transition-all ${campaignType === "template"
                       ? "bg-[#F5A623] text-white border-[#F5A623] shadow-sm"
                       : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                  }`}
+                    }`}
                 >
                   <FiGrid className="w-3.5 h-3.5" /> Template
                 </button>
@@ -928,7 +920,7 @@ export default function WhatsAppBroadcast() {
                   <span>{progress.current} / {progress.total} Sent</span>
                 </div>
                 <div className="w-full bg-amber-200 rounded-full h-2 overflow-hidden">
-                  <div 
+                  <div
                     className="bg-[#F5A623] h-full transition-all duration-300"
                     style={{ width: `${Math.round((progress.current / progress.total) * 100)}%` }}
                   />
@@ -965,11 +957,10 @@ export default function WhatsAppBroadcast() {
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-gray-800 truncate max-w-[150px]">{camp.name}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
-                          camp.status === "Completed" ? "bg-emerald-100 text-emerald-800" :
-                          camp.status === "Processing" ? "bg-amber-100 text-amber-800 animate-pulse" :
-                          "bg-red-100 text-red-800"
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold ${camp.status === "Completed" ? "bg-emerald-100 text-emerald-800" :
+                            camp.status === "Processing" ? "bg-amber-100 text-amber-800 animate-pulse" :
+                              "bg-red-100 text-red-800"
+                          }`}>
                           {camp.status}
                         </span>
                         <button
