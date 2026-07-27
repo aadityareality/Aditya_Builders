@@ -238,8 +238,21 @@ export const markMessageAsRead = async (messageId) => {
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = formatPhoneNumber(to);
   const cleanCaption = (caption || "").replace(/[\r\n\t]+/g, " ").trim();
+  const activeSession = await checkActiveSession(formattedPhone);
 
-  // Always send direct image payload so the user receives an actual visual photo on WhatsApp
+  if (!activeSession) {
+    console.log(`No active 24-hr session for ${formattedPhone}. Sending via approved Meta template...`);
+    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+      {
+        type: "BODY",
+        parameters: [
+          { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
+        ]
+      }
+    ]);
+  }
+
+  // Active 24-hr session: send direct image payload for full visual photo
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -255,12 +268,12 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active 24-hr session for ${formattedPhone}. Falling back to approved Meta template...`);
+      console.log(`Fallback for 24-hr session error on ${formattedPhone}...`);
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
           parameters: [
-            { type: "text", text: cleanCaption || "Check out our latest property update!" }
+            { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
           ]
         }
       ]);
