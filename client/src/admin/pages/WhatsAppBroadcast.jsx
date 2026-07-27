@@ -386,7 +386,10 @@ export default function WhatsAppBroadcast() {
 
     const matchesCategory = 
       selectedCategories.length === 0 || 
-      selectedCategories.includes(c.category || "General");
+      selectedCategories.some(cat => 
+        (c.category || "General") === cat || 
+        (Array.isArray(c.tags) && c.tags.includes(cat))
+      );
 
     return matchesSearch && matchesProject && matchesStatus && matchesCategory;
   });
@@ -557,7 +560,10 @@ export default function WhatsAppBroadcast() {
 
           {customCategories.map(cat => {
             const isSelected = selectedCategories.includes(cat);
-            const catCount = customers.filter(c => (c.category || "General") === cat).length;
+            const catCount = customers.filter(c => 
+              (c.category || "General") === cat || 
+              (Array.isArray(c.tags) && c.tags.includes(cat))
+            ).length;
             return (
               <div
                 key={cat}

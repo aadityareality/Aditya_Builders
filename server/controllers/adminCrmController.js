@@ -1190,6 +1190,7 @@ export const getBroadcastAudience = catchAsync(async (req, res) => {
       name: c.name || "Customer",
       phone: c.phone,
       category: c.category || "General",
+      tags: c.tags || [],
       leadStatus: c.leadStatus || "New",
       interestedProject: c.interestedProject || null,
       city: c.city || "",
