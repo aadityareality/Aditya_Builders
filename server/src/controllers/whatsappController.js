@@ -100,12 +100,14 @@ const logIncomingToCRM = async (messageObj, customerName, from, cloudinaryUrl = 
     const existing = await Message.findOne({ metaMessageId });
     if (existing) return; // Already logged — skip duplicate
 
-    // 1. Upsert Customer
-    let customer = await Customer.findOne({ phone: from });
+    // 1. Upsert Customer using variants matching both 10-digit and 12-digit formats
+    const queryVariants = whatsappService.getPhoneVariants(from);
+    let customer = await Customer.findOne({ phone: { $in: queryVariants } });
     let isNew = !customer;
     if (!customer) {
+      const cleanPhone = whatsappService.formatPhoneNumber(from);
       customer = new Customer({
-        phone: from,
+        phone: cleanPhone,
         name: customerName || "Customer",
         source: "WhatsApp",
         leadStatus: "New",
@@ -1163,8 +1165,9 @@ const upsertLead = async (phone, name, lastMessage, additionalPoints = 0, intere
     // Find or create customer matching either format
     let customer = await Customer.findOne({ phone: { $in: queryPhone } });
     if (!customer) {
+      const formattedPhone = whatsappService.formatPhoneNumber(cleanPhone);
       customer = new Customer({
-        phone: cleanPhone,
+        phone: formattedPhone,
         name: name || "Customer",
         source: "WhatsApp",
         leadStatus: "New",

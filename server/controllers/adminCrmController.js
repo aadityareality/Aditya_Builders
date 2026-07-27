@@ -318,7 +318,12 @@ export const updateCustomer = catchAsync(async (req, res) => {
 
   if (name !== undefined) customer.name = name.trim();
   if (phone !== undefined) {
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    const cleanPhone = whatsappService.formatPhoneNumber(phone);
+    const queryVariants = whatsappService.getPhoneVariants(phone);
+    const existing = await Customer.findOne({ phone: { $in: queryVariants }, _id: { $ne: customer._id } });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `Another customer with phone number ${phone} already exists.` });
+    }
     if (cleanPhone) customer.phone = cleanPhone;
   }
   if (category !== undefined) customer.category = category.trim() || "General";
@@ -369,13 +374,14 @@ export const createCustomer = catchAsync(async (req, res) => {
     return res.status(400).json({ success: false, message: "Customer phone is required" });
   }
 
-  const cleanPhone = phone.replace(/[^0-9]/g, "");
+  const cleanPhone = whatsappService.formatPhoneNumber(phone);
+  const queryVariants = whatsappService.getPhoneVariants(phone);
   if (!cleanPhone) {
     return res.status(400).json({ success: false, message: "Invalid phone number format" });
   }
 
   // Check if customer already exists with this phone
-  const existingCustomer = await Customer.findOne({ phone: cleanPhone });
+  const existingCustomer = await Customer.findOne({ phone: { $in: queryVariants } });
   if (existingCustomer) {
     return res.status(400).json({
       success: false,

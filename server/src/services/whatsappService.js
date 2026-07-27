@@ -487,15 +487,44 @@ export const sendAppointmentReminder = async (to, { customerName, date, time, pr
 };
 
 /**
+/**
+ * Helper to get all query variants for a phone number (both 10-digit and 12-digit with 91)
+ * @param {string} phone 
+ * @returns {Array<string>}
+ */
+export const getPhoneVariants = (phone) => {
+  if (!phone) return [];
+  if (typeof phone === "string" && phone.startsWith("BLANK_")) return [phone];
+  const cleaned = phone.toString().replace(/[^0-9]/g, "");
+  if (!cleaned) return [];
+  
+  let variants = [cleaned];
+  if (cleaned.length === 10) {
+    variants.push("91" + cleaned);
+  } else if (cleaned.length === 12 && cleaned.startsWith("91")) {
+    variants.push(cleaned.substring(2));
+  } else if (cleaned.length === 11 && cleaned.startsWith("0")) {
+    const ten = cleaned.substring(1);
+    variants.push(ten);
+    variants.push("91" + ten);
+  }
+  return Array.from(new Set(variants));
+};
+
+/**
  * Helper to clean and format phone numbers for WhatsApp Cloud API (defaults to 91 country code for India if 10-digits)
  * @param {string} phone - Input phone number
- * @returns {string} Cleaned phone number
+ * @returns {string} Cleaned phone number in E.164 format without leading '+'
  */
 export const formatPhoneNumber = (phone) => {
   if (!phone) return "";
-  let cleaned = phone.replace(/[^0-9]/g, "");
+  if (typeof phone === "string" && phone.startsWith("BLANK_")) return phone;
+  let cleaned = phone.toString().replace(/[^0-9]/g, "");
   if (cleaned.length === 10) {
-    cleaned = "91" + cleaned;
+    return "91" + cleaned;
+  }
+  if (cleaned.length === 11 && cleaned.startsWith("0")) {
+    return "91" + cleaned.substring(1);
   }
   return cleaned;
 };
@@ -617,6 +646,7 @@ const whatsappService = {
   sendPropertyInquiry,
   sendAppointmentReminder,
   formatPhoneNumber,
+  getPhoneVariants,
   sendCustomerInquiryConfirmation,
   sendAdminInquiryAlert,
   sendAdminSentimentAlert,
