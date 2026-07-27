@@ -122,18 +122,30 @@ export const sendTextMessage = async (to, text, customerName = null) => {
   };
 
   if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing via client_greeting template...`);
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing via Meta template...`);
     const name = await resolveName();
     const cleanedText = formatForTemplate(text);
-    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-      {
-        type: "BODY",
-        parameters: [
-          { type: "text", text: name },
-          { type: "text", text: cleanedText }
-        ]
-      }
-    ]);
+    try {
+      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
+    } catch (tmplErr) {
+      console.warn(`⚠️ marketing_promotion template failed: ${tmplErr.message}. Trying client_greeting template...`);
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
+    }
   }
 
   // Active session: send free-form with greeting prepended (preserves original line breaks)
@@ -151,17 +163,28 @@ export const sendTextMessage = async (to, text, customerName = null) => {
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to client_greeting template...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to Meta template...`);
       const cleanedText = formatForTemplate(text);
-      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: name },
-            { type: "text", text: cleanedText }
-          ]
-        }
-      ]);
+      try {
+        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: cleanedText }
+            ]
+          }
+        ]);
+      } catch (tErr) {
+        return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: name },
+              { type: "text", text: cleanedText }
+            ]
+          }
+        ]);
+      }
     }
     throw err;
   }
