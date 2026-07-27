@@ -3,7 +3,7 @@ import api from "../../hooks/api.js";
 import ConfirmModal from "../components/ConfirmModal.jsx";
 import { useAdminAuth } from "../context/AdminAuthContext.jsx";
 import toast from "react-hot-toast";
-import { FiPlus, FiTrash2, FiUserCheck, FiMail, FiUserPlus, FiShield } from "react-icons/fi";
+import { FiTrash2, FiMail, FiUserPlus, FiShield } from "react-icons/fi";
 
 /**
  * AdminUsers Component
@@ -78,7 +78,6 @@ export default function AdminUsers() {
 
   const handleRoleToggle = async (id, currentRole) => {
     // Basic verification: preventing lockouts
-    const targetAdmin = admins.find((a) => a._id === id);
     if (id === currentAdmin.id && currentRole === "superadmin") {
       toast.error("You cannot demote yourself. Promote another superadmin first.");
       return;

@@ -17,7 +17,7 @@ export default function WhatsAppBroadcast() {
 
   // Categories management
   const [customCategories, setCustomCategories] = useState([
-    "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+    "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "LUXURIA", "General"
   ]);
   const [selectedCategories, setSelectedCategories] = useState([]); // multi-selected categories
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
@@ -42,7 +42,6 @@ export default function WhatsAppBroadcast() {
 
   // Progress tracker
   const [progress, setProgress] = useState(null);
-  const [activeCampaignId, setActiveCampaignId] = useState(null);
   const [campaignStatus, setCampaignStatus] = useState("");
   const activeCampaignIdRef = useRef(null);
 
@@ -69,7 +68,6 @@ export default function WhatsAppBroadcast() {
           toast.success(`Campaign finished with status: ${progressData.status}!`);
           setSending(false);
           activeCampaignIdRef.current = null;
-          setActiveCampaignId(null);
           fetchCampaignHistory();
         }
       }
@@ -127,7 +125,7 @@ export default function WhatsAppBroadcast() {
 
         // Collect all categories dynamically from customer records
         const foundCategories = new Set([
-          "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+          "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "LUXURIA", "General"
         ]);
         data.data.forEach(c => {
           if (c.category && c.category.trim()) {
@@ -314,7 +312,7 @@ export default function WhatsAppBroadcast() {
         if (audienceRes.data?.success && audienceRes.data?.data) {
           setCustomers(audienceRes.data.data);
           const foundCategories = new Set([
-            "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "General"
+            "AURA", "SKYLINE", "ICON", "SHREEJI", "ELEGANCE", "GOLD", "DREAMLAND", "ADITYA ST SOCIETY", "LUXURIA", "General"
           ]);
           audienceRes.data.data.forEach(c => {
             if (c.category && c.category.trim()) {
@@ -448,6 +446,11 @@ export default function WhatsAppBroadcast() {
       return;
     }
 
+    if (campaignType === "template" && !messageBody.trim()) {
+      toast.error("Please enter a parameter description for the template.");
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to broadcast this message to ${selectedIds.length} customer(s)?`)) {
       return;
     }
@@ -487,7 +490,6 @@ export default function WhatsAppBroadcast() {
       if (data.success && data.data?.campaignId) {
         const cId = data.data.campaignId;
         activeCampaignIdRef.current = cId;
-        setActiveCampaignId(cId);
         toast.success("Campaign broadcast started in background!");
         fetchCampaignHistory();
       } else {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiMapPin, FiPhone, FiInfo, FiTag, FiKey, FiAward, FiX, FiMaximize } from "react-icons/fi";
+import { FiMapPin, FiPhone, FiInfo, FiKey, FiAward, FiX, FiMaximize } from "react-icons/fi";
 import { getProjectBySlug } from "../services/api.js";
 import { useSiteSettings } from "../context/SiteSettingsContext.jsx";
 import Button from "../components/ui/Button.jsx";

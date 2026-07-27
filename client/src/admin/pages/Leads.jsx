@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import api from "../../hooks/api.js";
-import StatusBadge from "../components/StatusBadge.jsx";
 import toast from "react-hot-toast";
 import { FiSearch, FiPhone, FiMail, FiPaperclip, FiArrowRight, FiEye, FiTrash2, FiClock } from "react-icons/fi";
 

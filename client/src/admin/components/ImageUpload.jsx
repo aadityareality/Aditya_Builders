@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { FiPlus, FiTrash2, FiImage, FiUploadCloud } from "react-icons/fi";
+import { FiPlus, FiTrash2, FiImage } from "react-icons/fi";
 import toast from "react-hot-toast";
 
 /**

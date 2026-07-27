@@ -3,7 +3,7 @@ import api from "../../hooks/api.js";
 import ImageUpload from "../components/ImageUpload.jsx";
 import ConfirmModal from "../components/ConfirmModal.jsx";
 import toast from "react-hot-toast";
-import { FiPlus, FiTrash2, FiEdit2, FiSave, FiUsers } from "react-icons/fi";
+import { FiTrash2, FiEdit2 } from "react-icons/fi";
 
 /**
  * AdminTeam Component
