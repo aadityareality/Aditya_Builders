@@ -237,41 +237,16 @@ export const markMessageAsRead = async (messageId) => {
  */
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = formatPhoneNumber(to);
-  const activeSession = await checkActiveSession(formattedPhone);
+  const cleanCaption = (caption || "").replace(/[\r\n\t]+/g, " ").trim();
 
-  const cleanCaption = (caption || "Check out this image from Aditya Builders").replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-
-  if (!activeSession) {
-    console.log(`No active 24-hr session for ${formattedPhone}. Dispatching image via Meta template...`);
-    try {
-      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: `${cleanCaption}: ${imageUrl}` }
-          ]
-        }
-      ]);
-    } catch (tErr) {
-      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: cleanCaption }
-          ]
-        }
-      ]);
-    }
-  }
-
-  // Active 24-hr session: send direct image payload
+  // Always send direct image payload so the user receives an actual visual photo on WhatsApp
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
     type: "image",
     image: {
       link: imageUrl,
-      caption: caption || "",
+      caption: cleanCaption,
     },
   };
 
@@ -280,11 +255,12 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
+      console.log(`No active 24-hr session for ${formattedPhone}. Falling back to approved Meta template...`);
       return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
         {
           type: "BODY",
           parameters: [
-            { type: "text", text: `${cleanCaption}: ${imageUrl}` }
+            { type: "text", text: cleanCaption || "Check out our latest property update!" }
           ]
         }
       ]);
