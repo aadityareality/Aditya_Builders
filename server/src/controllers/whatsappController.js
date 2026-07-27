@@ -1074,11 +1074,44 @@ export const receiveWebhook = async (req, res) => {
             rawMetaPayload: statusObj
           });
 
+          // If Meta rejected due to 24-hr session window expiration (Error 131047), auto-retry via Meta Template
+          if (messageStatus === "failed" && statusObj?.errors?.[0]?.code === 131047) {
+            console.log(`⚠️ [CRM Auto-Rescue] Webhook reported 24-hr session failure for msg ${messageId}. Auto-retrying via Meta template...`);
+            const chatObj = await Chat.findById(crmMsg.chat).populate("customer");
+            if (chatObj && chatObj.customer) {
+              const recipientPhone = whatsappService.formatPhoneNumber(chatObj.customer.phone);
+              let fallbackRes = null;
+              try {
+                if (crmMsg.messageType === "text") {
+                  const textContent = typeof crmMsg.body === "string" ? crmMsg.body : (crmMsg.body?.text || "Hello from Aditya Builders");
+                  fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "marketing_promotion", "en", [
+                    { type: "BODY", parameters: [{ type: "text", text: textContent }] }
+                  ]);
+                } else if (crmMsg.messageType === "image") {
+                  const imgUrl = crmMsg.body?.url || crmMsg.body?.cloudinaryUrl || "";
+                  const caption = (crmMsg.body?.caption || "Check out this image from Aditya Builders").replace(/[\r\n\t]+/g, " ").trim();
+                  fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "marketing_promotion", "en", [
+                    { type: "BODY", parameters: [{ type: "text", text: `${caption}: ${imgUrl}` }] }
+                  ]);
+                }
+                if (fallbackRes?.messages?.[0]?.id) {
+                  console.log(`✅ [CRM Auto-Rescue] Resent message ${crmMsg._id} via Meta template! New Meta ID: ${fallbackRes.messages[0].id}`);
+                  crmMsg.metaMessageId = fallbackRes.messages[0].id;
+                  crmMsg.deliveryStatus = "sent";
+                  await crmMsg.save();
+                  messageStatus = "sent";
+                }
+              } catch (rescueErr) {
+                console.error("❌ [CRM Auto-Rescue] Failed to rescue message:", rescueErr.message);
+              }
+            }
+          }
+
           // Emit Socket update
           emitToAdmins("message_status", {
             chatId: crmMsg.chat,
             messageId: crmMsg._id,
-            metaMessageId: messageId,
+            metaMessageId: crmMsg.metaMessageId || messageId,
             status: messageStatus
           });
         }
