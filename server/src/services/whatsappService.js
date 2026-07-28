@@ -255,15 +255,37 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing via approved Meta template...`);
-      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
-          ]
-        }
-      ]);
+      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via Meta template...`);
+      try {
+        // First try Meta template with Image Header parameter
+        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+          {
+            type: "HEADER",
+            parameters: [
+              {
+                type: "image",
+                image: { link: imageUrl }
+              }
+            ]
+          },
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: cleanCaption || "Check out our latest property update!" }
+            ]
+          }
+        ]);
+      } catch (headerErr) {
+        // Fallback to text body parameter template if header parameters are unconfigured
+        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+          {
+            type: "BODY",
+            parameters: [
+              { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
+            ]
+          }
+        ]);
+      }
     }
     throw err;
   }

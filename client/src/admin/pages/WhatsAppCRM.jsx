@@ -46,21 +46,37 @@ const MessageBubble = ({ msg }) => {
 
   const renderBody = () => {
     if (msg.messageType === "text") {
-      return <p className="text-sm whitespace-pre-wrap break-words">{body}</p>;
-    }
-    if (msg.messageType === "image") {
+      const textContent = typeof body === "string" ? body : (body?.text || "");
+      const imageMatch = textContent.match(/https?:\/\/[^\s]+(?:\.png|\.jpg|\.jpeg|\.webp|cloudinary\.com[^\s]*)/i);
       return (
         <div>
-          {body?.cloudinaryUrl ? (
-            <a href={body.cloudinaryUrl} target="_blank" rel="noreferrer">
-              <img src={body.cloudinaryUrl} alt="img" className="max-w-xs rounded-lg max-h-48 object-cover cursor-pointer hover:opacity-90 transition" />
+          <p className="text-sm whitespace-pre-wrap break-words">{textContent}</p>
+          {imageMatch && (
+            <a href={imageMatch[0]} target="_blank" rel="noreferrer" className="block mt-2">
+              <img src={imageMatch[0]} alt="img" className="max-w-xs rounded-lg max-h-48 object-cover cursor-pointer hover:opacity-90 transition border border-gray-200" />
+            </a>
+          )}
+        </div>
+      );
+    }
+    if (msg.messageType === "image") {
+      const imageUrl = typeof body === "string"
+        ? body
+        : body?.cloudinaryUrl || body?.url || body?.link || body?.caption;
+      const captionText = typeof body === "object" ? body?.caption : "";
+
+      return (
+        <div>
+          {imageUrl && imageUrl.startsWith("http") ? (
+            <a href={imageUrl} target="_blank" rel="noreferrer">
+              <img src={imageUrl} alt="img" className="max-w-xs rounded-lg max-h-48 object-cover cursor-pointer hover:opacity-90 transition border border-gray-200" />
             </a>
           ) : (
             <div className="flex items-center gap-2 text-sm text-gray-400 italic">
               <FiImage /> <span>{body?.mediaError || "Image unavailable"}</span>
             </div>
           )}
-          {body?.caption && <p className="text-xs mt-1 opacity-70">{body.caption}</p>}
+          {captionText && <p className="text-xs mt-1 opacity-70">{captionText}</p>}
         </div>
       );
     }

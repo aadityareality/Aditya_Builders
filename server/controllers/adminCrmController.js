@@ -259,10 +259,19 @@ export const sendCrmReply = catchAsync(async (req, res) => {
 
   // Save Outgoing Message in MongoDB
   let savedBody = body;
-  if (messageType !== "text" && body && typeof body === "object") {
+  if (messageType === "image") {
+    const imgUrl = typeof body === "string" ? body : (body.cloudinaryUrl || body.url || body.link || "");
+    const caption = typeof body === "object" ? body.caption : "";
+    savedBody = {
+      url: imgUrl,
+      cloudinaryUrl: imgUrl,
+      caption
+    };
+  } else if (messageType !== "text" && body && typeof body === "object") {
     savedBody = {
       ...body,
-      cloudinaryUrl: body.cloudinaryUrl || body.url || null,
+      cloudinaryUrl: body.cloudinaryUrl || body.url || body.link || null,
+      url: body.url || body.cloudinaryUrl || body.link || null,
       fileName: body.fileName || body.filename || null
     };
   }
