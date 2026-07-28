@@ -221,6 +221,7 @@ export const markMessageAsRead = async (messageId) => {
 export const sendImage = async (to, imageUrl, caption = "", customerName = null) => {
   const formattedPhone = formatPhoneNumber(to);
   const cleanCaption = (caption || "").replace(/[\r\n\t]+/g, " ").trim();
+  const activeSession = await checkActiveSession(formattedPhone);
 
   const resolveImgName = async () => {
     if (customerName && customerName.trim() && !customerName.startsWith("BLANK_")) {
@@ -236,7 +237,30 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
 
   const name = await resolveImgName();
 
-  // Always attempt direct visual photo payload first so users receive real photos on WhatsApp
+  // 1. If recipient has no active 24-hr session (new contact/old contact outside 24h), route directly via Meta Image Template with IMAGE HEADER
+  if (!activeSession) {
+    console.log(`⚠️ No active 24h session for ${formattedPhone}. Routing image directly via approved aditya_image_update Meta Template...`);
+    return await sendTemplateMessage(formattedPhone, "aditya_image_update", "en", [
+      {
+        type: "header",
+        parameters: [
+          {
+            type: "image",
+            image: { link: imageUrl }
+          }
+        ]
+      },
+      {
+        type: "body",
+        parameters: [
+          { type: "text", text: name },
+          { type: "text", text: cleanCaption || "Property Details" }
+        ]
+      }
+    ]);
+  }
+
+  // 2. Active 24-hr session: send direct freeform visual photo
   const payload = {
     messaging_product: "whatsapp",
     to: formattedPhone,
@@ -252,39 +276,25 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via Meta image template...`);
-      try {
-        // Primary rescue: Meta Template with IMAGE HEADER for true visual photo delivery
-        return await sendTemplateMessage(formattedPhone, "aditya_image_update", "en", [
-          {
-            type: "header",
-            parameters: [
-              {
-                type: "image",
-                image: { link: imageUrl }
-              }
-            ]
-          },
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: name },
-              { type: "text", text: cleanCaption || "Property Update" }
-            ]
-          }
-        ]);
-      } catch (imgTmplErr) {
-        console.warn(`⚠️ aditya_image_update template fallback: ${imgTmplErr.message}. Trying client_greeting...`);
-        return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-          {
-            type: "body",
-            parameters: [
-              { type: "text", text: name },
-              { type: "text", text: cleanCaption ? `${cleanCaption}` : `Photo update: ${imageUrl}` }
-            ]
-          }
-        ]);
-      }
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Rescuing image via aditya_image_update Meta Template...`);
+      return await sendTemplateMessage(formattedPhone, "aditya_image_update", "en", [
+        {
+          type: "header",
+          parameters: [
+            {
+              type: "image",
+              image: { link: imageUrl }
+            }
+          ]
+        },
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanCaption || "Property Details" }
+          ]
+        }
+      ]);
     }
     throw err;
   }
