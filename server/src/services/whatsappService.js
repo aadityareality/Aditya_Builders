@@ -252,16 +252,39 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via approved client_greeting Meta template...`);
-      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: name },
-            { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
-          ]
-        }
-      ]);
+      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via Meta image template...`);
+      try {
+        // Primary rescue: Meta Template with IMAGE HEADER for true visual photo delivery
+        return await sendTemplateMessage(formattedPhone, "aditya_image_update", "en", [
+          {
+            type: "header",
+            parameters: [
+              {
+                type: "image",
+                image: { link: imageUrl }
+              }
+            ]
+          },
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: name },
+              { type: "text", text: cleanCaption || "Property Update" }
+            ]
+          }
+        ]);
+      } catch (imgTmplErr) {
+        console.warn(`⚠️ aditya_image_update template fallback: ${imgTmplErr.message}. Trying client_greeting...`);
+        return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+          {
+            type: "body",
+            parameters: [
+              { type: "text", text: name },
+              { type: "text", text: cleanCaption ? `${cleanCaption}` : `Photo update: ${imageUrl}` }
+            ]
+          }
+        ]);
+      }
     }
     throw err;
   }
