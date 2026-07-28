@@ -1086,18 +1086,19 @@ export const receiveWebhook = async (req, res) => {
               const chatObj = await Chat.findById(crmMsg.chat).populate("customer");
               if (chatObj && chatObj.customer) {
                 const recipientPhone = whatsappService.formatPhoneNumber(chatObj.customer.phone);
+                const custName = (chatObj.customer.name && !chatObj.customer.name.startsWith("BLANK_")) ? chatObj.customer.name.replace(/\s*\(No Phone Number\)\s*/i, "").trim() : "Client";
                 let fallbackRes = null;
                 try {
                   if (crmMsg.messageType === "text") {
                     const textContent = typeof crmMsg.body === "string" ? crmMsg.body : (crmMsg.body?.text || "Hello from Aditya Builders");
-                    fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "marketing_promotion", "en", [
-                      { type: "BODY", parameters: [{ type: "text", text: textContent }] }
+                    fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "client_greeting", "en", [
+                      { type: "BODY", parameters: [{ type: "text", text: custName }, { type: "text", text: textContent }] }
                     ]);
                   } else if (crmMsg.messageType === "image") {
                     const imgUrl = crmMsg.body?.url || crmMsg.body?.cloudinaryUrl || "";
                     const caption = (crmMsg.body?.caption || "Check out this image from Aditya Builders").replace(/[\r\n\t]+/g, " ").trim();
-                    fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "marketing_promotion", "en", [
-                      { type: "BODY", parameters: [{ type: "text", text: `${caption}: ${imgUrl}` }] }
+                    fallbackRes = await whatsappService.sendTemplateMessage(recipientPhone, "client_greeting", "en", [
+                      { type: "BODY", parameters: [{ type: "text", text: custName }, { type: "text", text: `${caption}: ${imgUrl}` }] }
                     ]);
                   }
                   if (fallbackRes?.messages?.[0]?.id) {

@@ -107,10 +107,15 @@ export const sendTextMessage = async (to, text, customerName = null) => {
 
   // Helper: resolve name from param or DB lookup
   const resolveName = async () => {
-    if (customerName) return customerName.trim();
+    if (customerName && customerName.trim() && !customerName.startsWith("BLANK_")) {
+      return customerName.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
     const cleanPhone = formattedPhone.slice(-10);
     const customer = await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
-    return customer ? customer.name : "Client";
+    if (customer && customer.name && !customer.name.startsWith("BLANK_")) {
+      return customer.name.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
+    return "Client";
   };
 
   const formatForTemplate = (rawText) => {
@@ -121,36 +126,25 @@ export const sendTextMessage = async (to, text, customerName = null) => {
       .trim();
   };
 
+  const name = await resolveName();
+
   if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing via Meta template...`);
-    const name = await resolveName();
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing via approved client_greeting Meta template...`);
     const cleanedText = formatForTemplate(text);
-    try {
-      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: cleanedText }
-          ]
-        }
-      ]);
-    } catch (tmplErr) {
-      console.warn(`⚠️ marketing_promotion template failed: ${tmplErr.message}. Trying client_greeting template...`);
-      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-        {
-          type: "BODY",
-          parameters: [
-            { type: "text", text: name },
-            { type: "text", text: cleanedText }
-          ]
-        }
-      ]);
-    }
+    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+      {
+        type: "BODY",
+        parameters: [
+          { type: "text", text: name },
+          { type: "text", text: cleanedText }
+        ]
+      }
+    ]);
   }
 
-  // Active session: send free-form with greeting prepended (preserves original line breaks)
-  const name = await resolveName();
-  const fullText = `hello, ${name} !\n\n${text}`;
+  // Active session: send free-form with personalized greeting & signoff
+  const greetingHeader = name && name !== "Client" ? `Hello, ${name}!` : `Hello!`;
+  const fullText = `${greetingHeader}\n\n${text}\n\nBest regards,\nAditya Builders Team`;
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
@@ -163,28 +157,17 @@ export const sendTextMessage = async (to, text, customerName = null) => {
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to Meta template...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Falling back to client_greeting Meta template...`);
       const cleanedText = formatForTemplate(text);
-      try {
-        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: cleanedText }
-            ]
-          }
-        ]);
-      } catch (tErr) {
-        return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: name },
-              { type: "text", text: cleanedText }
-            ]
-          }
-        ]);
-      }
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: cleanedText }
+          ]
+        }
+      ]);
     }
     throw err;
   }
@@ -239,6 +222,20 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   const formattedPhone = formatPhoneNumber(to);
   const cleanCaption = (caption || "").replace(/[\r\n\t]+/g, " ").trim();
 
+  const resolveImgName = async () => {
+    if (customerName && customerName.trim() && !customerName.startsWith("BLANK_")) {
+      return customerName.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
+    const cleanPhone = formattedPhone.slice(-10);
+    const customer = await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
+    if (customer && customer.name && !customer.name.startsWith("BLANK_")) {
+      return customer.name.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
+    return "Client";
+  };
+
+  const name = await resolveImgName();
+
   // Always attempt direct visual photo payload first so users receive real photos on WhatsApp
   const payload = {
     messaging_product: "whatsapp",
@@ -255,37 +252,16 @@ export const sendImage = async (to, imageUrl, caption = "", customerName = null)
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via Meta template...`);
-      try {
-        // First try Meta template with Image Header parameter
-        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-          {
-            type: "HEADER",
-            parameters: [
-              {
-                type: "image",
-                image: { link: imageUrl }
-              }
-            ]
-          },
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: cleanCaption || "Check out our latest property update!" }
-            ]
-          }
-        ]);
-      } catch (headerErr) {
-        // Fallback to text body parameter template if header parameters are unconfigured
-        return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
-          {
-            type: "BODY",
-            parameters: [
-              { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
-            ]
-          }
-        ]);
-      }
+      console.log(`No active 24-hr session for ${formattedPhone}. Rescuing image via approved client_greeting Meta template...`);
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
+        {
+          type: "BODY",
+          parameters: [
+            { type: "text", text: name },
+            { type: "text", text: `${cleanCaption || "Check out our latest property update!"}: ${imageUrl}` }
+          ]
+        }
+      ]);
     }
     throw err;
   }
@@ -305,20 +281,28 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
   const activeSession = await checkActiveSession(formattedPhone);
 
   const resolveDocName = async () => {
-    if (customerName) return customerName.trim();
+    if (customerName && customerName.trim() && !customerName.startsWith("BLANK_")) {
+      return customerName.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
     const cleanPhone = formattedPhone.slice(-10);
     const customer = await Customer.findOne({ phone: { $regex: new RegExp(cleanPhone + "$") } });
-    return customer ? customer.name : "Client";
+    if (customer && customer.name && !customer.name.startsWith("BLANK_")) {
+      return customer.name.replace(/\s*\(No Phone Number\)\s*/i, "").trim();
+    }
+    return "Client";
   };
 
+  const docName = await resolveDocName();
+
   if (!activeSession) {
-    console.log(`⚠️ No active session for ${formattedPhone}. Routing document via Meta template...`);
+    console.log(`⚠️ No active session for ${formattedPhone}. Routing document via client_greeting Meta template...`);
     const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
     const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-    return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+    return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
       {
         type: "BODY",
         parameters: [
+          { type: "text", text: docName },
           { type: "text", text: cleanedText }
         ]
       }
@@ -340,13 +324,14 @@ export const sendDocument = async (to, documentUrl, filename, caption = "", cust
   } catch (err) {
     const errData = err.message || "";
     if (errData.includes("131047") || errData.includes("24 hours") || errData.includes("session")) {
-      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying document with template fallback...`);
+      console.log(`⚠️ Session expired mid-send for ${formattedPhone}. Retrying document with client_greeting template...`);
       const textFallback = `Document "${filename}"${caption ? ": " + caption : ""} Link: ${documentUrl}`;
       const cleanedText = textFallback.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
-      return await sendTemplateMessage(formattedPhone, "marketing_promotion", "en", [
+      return await sendTemplateMessage(formattedPhone, "client_greeting", "en", [
         {
           type: "BODY",
           parameters: [
+            { type: "text", text: docName },
             { type: "text", text: cleanedText }
           ]
         }
