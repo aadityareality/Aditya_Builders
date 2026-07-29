@@ -80,7 +80,7 @@ const siteSettingsSchema = new Schema(
      */
     phoneNumbers: {
       type: [String],
-      default: ["+91 99748 58500"],
+      default: ["+91 99748 58500", "+91 99981 12121"],
     },
 
     /** General enquiries email address shown publicly */

@@ -317,7 +317,7 @@ export default function AdminSettings() {
                 required
                 value={formData.phoneNumbers}
                 onChange={(e) => setFormData({ ...formData, phoneNumbers: e.target.value })}
-                placeholder="+91 99748 58500, +91 99748 58501"
+                placeholder="+91 99748 58500, +91 99981 12121"
                 className="w-full px-4 py-2.5 rounded-xl border border-amber-100 focus:outline-none bg-[#FFFBF5]/20 font-semibold"
               />
             </div>

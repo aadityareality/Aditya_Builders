@@ -523,9 +523,9 @@ export const sendPropertyInquiry = async (to, { property, budget, location }) =>
  */
 export const sendAppointmentReminder = async (to, { customerName, date, time, projectName, relativeTimeText }) => {
   const settings = await SiteSettings.getSettings();
-  const address = settings.address || "Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat";
-  const link = `https://www.google.com/maps?q=${settings.mapLatitude || 21.7484},${settings.mapLongitude || 72.1328}`;
-  const phone = settings.phoneNumbers?.[0] || "+91 99748 58500";
+  const address = settings.address || "Shop no 9&10, Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat";
+  const link = settings.googleMapsUrl || `https://www.google.com/maps?q=${settings.mapLatitude || 21.75979},${settings.mapLongitude || 72.12433}`;
+  const phoneList = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
 
   const text = 
     `🔔 *Reminder*\n\n` +
@@ -533,9 +533,9 @@ export const sendAppointmentReminder = async (to, { customerName, date, time, pr
     `is scheduled *${relativeTimeText}* at *${time}*.\n\n` +
     `📍 *Office Address:* ${address}\n` +
     `🗺️ *Google Maps:* ${link}\n` +
-    `📞 *Contact Number:* ${phone}`;
+    `📞 *Contact Number:* ${phoneList}`;
 
-  return sendTextMessage(to, text);
+  return sendTextMessage(to, text, customerName);
 };
 
 /**

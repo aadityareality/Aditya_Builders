@@ -1002,7 +1002,9 @@ export const receiveWebhook = async (req, res) => {
           } else if (["location", "office", "map", "address", "visit office"].includes(lowerText)) {
             await sendOfficeLocation(from, message.id);
           } else if (lowerText === "contact") {
-            await sendBotReply(from, message.id, "📞 *Contact Support:*\n\nPhone: +91 99748 58500");
+            const settings = await SiteSettings.getSettings();
+            const phones = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
+            await sendBotReply(from, message.id, `📞 *Contact Support:*\n\nPhone: ${phones}`);
           } else if (lowerText === "brochure") {
             await startBrochureRequestFlow(from, message.id, state);
           } else if (textBody === "1") {
@@ -1019,11 +1021,12 @@ export const receiveWebhook = async (req, res) => {
             await sendOfficeLocation(from, message.id);
           } else if (textBody === "7") {
             const settings = await SiteSettings.getSettings();
+            const phones = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
             await sendBotReply(
               from,
               message.id,
               `🏢 *Aaditya Builders Support:*\n\n` +
-              `Phone: ${settings.phoneNumbers?.[0] || "+91 99748 58500"}\n` +
+              `Phone: ${phones}\n` +
               `Email: ${settings.email || "aadityareality1@gmail.com"}\n` +
               `Website: https://adityabuilders.in`
             );
