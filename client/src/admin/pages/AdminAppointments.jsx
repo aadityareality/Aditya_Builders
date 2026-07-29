@@ -381,20 +381,6 @@ export default function AdminAppointments() {
                               <FiSend className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {/* Reschedule */}
-                          {apt.status !== "Cancelled" && (
-                            <button
-                              onClick={() => {
-                                setRescheduleApt(apt);
-                                setNewDate(new Date(apt.preferredDate).toISOString().slice(0, 10));
-                                setNewTime(apt.preferredTime);
-                              }}
-                              title="Reschedule Site Visit"
-                              className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 hover:border-blue-200 rounded-xl transition-all"
-                            >
-                              <FiCornerUpRight className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                           {/* Cancel */}
                           {apt.status !== "Cancelled" && (
                             <button
@@ -503,74 +489,6 @@ export default function AdminAppointments() {
         </div>
       )}
 
-      {/* Reschedule Modal */}
-      {rescheduleApt && (
-        <div className="fixed inset-0 bg-[#2E2A26]/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-amber-100 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 text-left">
-            <h3 className="text-base font-bold text-[#2E2A26] border-b border-amber-50 pb-3">
-              Reschedule Site Visit Booking
-            </h3>
-            
-            <form onSubmit={handleRescheduleSubmit} className="flex flex-col gap-4 mt-4 text-xs">
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B625A] uppercase tracking-wider mb-2">
-                  Customer
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={`${rescheduleApt.customerName} (${rescheduleApt.customerPhone})`}
-                  className="w-full px-4 py-2.5 rounded-xl border border-amber-50 bg-amber-50/20 font-bold text-[#6B625A]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B625A] uppercase tracking-wider mb-2">
-                  Preferred Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-amber-100 focus:outline-none focus:border-[#F5A623] bg-[#FFFBF5]/20 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-[#6B625A] uppercase tracking-wider mb-2">
-                  Preferred Time (e.g. 10:30 AM) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTime}
-                  onChange={(e) => setNewTime(e.target.value)}
-                  placeholder="e.g. 10:30 AM"
-                  className="w-full px-4 py-2.5 rounded-xl border border-amber-100 focus:outline-none focus:border-[#F5A623] bg-[#FFFBF5]/20 font-semibold"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-amber-50">
-                <button
-                  type="button"
-                  onClick={() => setRescheduleApt(null)}
-                  className="px-4 py-2 rounded-xl border border-amber-200 text-[#6B625A] hover:bg-amber-50/30 font-bold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={rescheduling}
-                  className="px-4 py-2 rounded-xl bg-[#F5A623] hover:bg-[#E8871E] text-white font-bold transition-all shadow-md"
-                >
-                  {rescheduling ? "Updating..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

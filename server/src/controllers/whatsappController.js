@@ -1583,7 +1583,7 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
     await sendBotReply(
       phone,
       messageId,
-      `Got it, ${textBody}!\n\nYour number is currently detected as ${phone}. Would you like to use this number for contact, or specify a different number? Reply with *YES* to use it, or type your preferred 10-digit phone number:`
+      `Got it, ${textBody}!\n\nYour number is currently detected as *${phone}*. Would you like to use this number for contact, or specify a different number?\n\nReply with *YES* to use it, or type your 10-digit phone number:`
     );
   } else if (step === 2) {
     if (textBody.toUpperCase() === "YES") {
@@ -1597,90 +1597,16 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
         return;
       }
     }
-    await updateConversationState(phone, "site_visit_booking", 3, data, state);
-    await sendBotReply(phone, messageId, "Please enter your **Email Address**:");
-  } else if (step === 3) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(textBody)) {
-      await sendBotReply(phone, messageId, "Invalid email format. Please enter a valid email address (e.g. customer@example.com):");
-      return;
-    }
-    data.email = textBody.toLowerCase().trim();
-
-    // Check if project is already pre-selected
-    if (data.projectId) {
-      await updateConversationState(phone, "site_visit_booking", 5, data, state);
-      await sendBotReply(phone, messageId, `Excellent. You've pre-selected *${data.projectName}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
-    } else {
-      const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
-      if (projects.length === 0) {
-        data.projectId = null;
-        data.projectName = "General Site Visit";
-        await updateConversationState(phone, "site_visit_booking", 5, data, state);
-        await sendBotReply(phone, messageId, "No specific project catalog available right now. Let's schedule a general tour.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):");
-      } else {
-        const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
-        data.projectList = projects.map(p => p._id);
-        await updateConversationState(phone, "site_visit_booking", 4, data, state);
-        await sendBotReply(phone, messageId, `Please choose the project you want to visit (reply with the option number):\n\n${listText}`);
-      }
-    }
-  } else if (step === 4) {
-    const idx = parseInt(textBody, 10) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= data.projectList.length) {
-      await sendBotReply(phone, messageId, "Invalid project choice. Please reply with a valid number from the catalog list:");
-      return;
-    }
-    const projectId = data.projectList[idx];
-    const project = await Project.findById(projectId);
     
-    data.projectId = project._id;
-    data.projectName = project.title;
-    await updateConversationState(phone, "site_visit_booking", 5, data, state);
-    await sendBotReply(phone, messageId, `Excellent. You've chosen *${project.title}*.\n\nPlease enter your preferred **Date** for the visit (Format: DD/MM/YYYY):`);
-  } else if (step === 5) {
-    const parsedDate = parseDateStr(textBody);
-    if (!parsedDate) {
-      await sendBotReply(phone, messageId, "Invalid date format. Please type the date in **DD/MM/YYYY** format (e.g. 25/12/2026):");
-      return;
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (parsedDate < today) {
-      await sendBotReply(phone, messageId, "The date cannot be in the past. Please enter a future date (Format: DD/MM/YYYY):");
-      return;
-    }
-    data.date = textBody;
-    await updateConversationState(phone, "site_visit_booking", 6, data, state);
-    await sendBotReply(phone, messageId, "Please enter your preferred **Time** (e.g. 10:30 AM or 4:00 PM):");
-  } else if (step === 6) {
-    data.time = textBody;
-    await updateConversationState(phone, "site_visit_booking", 7, data, state);
-    await sendBotReply(phone, messageId, "How many **Visitors** will attend? (Please enter a number, e.g. 2):");
-  } else if (step === 7) {
-    const visitors = parseInt(textBody, 10);
-    if (isNaN(visitors) || visitors <= 0) {
-      await sendBotReply(phone, messageId, "Please enter a valid positive number for the visitor count:");
-      return;
-    }
-    data.visitors = visitors;
-    await updateConversationState(phone, "site_visit_booking", 8, data, state);
-    await sendBotReply(phone, messageId, "Any **Special Requirements** or requests? (Reply with *SKIP* or *NONE* if none):");
-  } else if (step === 8) {
-    data.notes = ["SKIP", "NONE"].includes(textBody.toUpperCase()) ? "" : textBody;
+    data.projectName = data.projectName || "Aaditya Builders Project";
     await updateConversationState(phone, "site_visit_booking", 9, data, state);
     
-    // Confirm prompt
+    // Confirm prompt - Only Name, Phone, Project
     const confirmPrompt = 
       `📝 *Review Booking Details:*\n\n` +
       `👤 *Name:* ${data.name}\n` +
-      `☎️ *Phone:* ${data.phone}\n` +
-      `📧 *Email:* ${data.email}\n` +
-      `🏢 *Project:* ${data.projectName}\n` +
-      `📅 *Date:* ${data.date}\n` +
-      `🕒 *Time:* ${data.time}\n` +
-      `👥 *Visitors:* ${data.visitors}\n` +
-      `📝 *Notes:* ${data.notes || "None"}\n\n` +
+      `📞 *Phone:* ${data.phone}\n` +
+      `🏢 *Project:* ${data.projectName}\n\n` +
       `Confirm Booking?\n` +
       `Reply with *YES* or *NO*:`;
     await sendBotReply(phone, messageId, confirmPrompt);
@@ -1692,58 +1618,42 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
       return;
     }
 
-    const dateObj = parseDateStr(data.date);
+    const dateObj = new Date();
     
-    let queryProjectId = null;
-    if (data.projectId) {
-      try {
-        queryProjectId = mongoose.Types.ObjectId.createFromHexString(String(data.projectId));
-      } catch (err) {
-        queryProjectId = data.projectId;
-      }
-    }
-
-    // Prevent duplicate appointments check (Feature 17)
-    const existingApt = await Appointment.findOne({
-      customerPhone: data.phone,
-      project: queryProjectId || null,
-      preferredDate: dateObj,
-      preferredTime: data.time,
-      status: { $in: ["Confirmed", "Rescheduled"] }
-    });
-
-    if (existingApt) {
-      await sendBotReply(phone, messageId, "⚠️ You already have a confirmed site visit scheduled for this project at this date and time. To prevent duplicates, we have aborted this duplicate booking request.");
-      await ConversationState.deleteOne({ phone });
-      return;
-    }
-
-    // Save appointment (Feature 7)
+    // Save appointment
     const apt = await Appointment.create({
       customerName: data.name,
       customerPhone: data.phone,
-      customerEmail: data.email,
+      customerEmail: data.email || "",
       project: data.projectId || null,
-      projectName: data.projectName,
+      projectName: data.projectName || "General Site Visit",
       preferredDate: dateObj,
-      preferredTime: data.time,
-      numberOfVisitors: data.visitors,
-      notes: data.notes,
+      preferredTime: "11:00 AM",
+      numberOfVisitors: 1,
+      notes: "Booked via WhatsApp Chatbot",
       status: "Confirmed"
     });
 
-    // Update CRM stage (Feature 10)
+    // Update CRM stage
     await upsertLead(phone, data.name, `Booked site visit for ${data.projectName}`, 5, data.projectId, "Site Visit Booked");
 
-    // Send customer confirmation
+    // Send customer confirmation with both numbers and office address
+    const settings = await SiteSettings.getSettings();
+    const address = settings.address || "Shop no 9&10, Plot no 3, Shivomnagar, Jewels Circle to RTO Road, Bhavnagar 364004, Gujarat";
+    const mapsLink = settings.googleMapsUrl || "https://www.google.com/maps?q=21.75979,72.12433";
+    const phonesList = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
+
     const customerConfirmText = 
-      `Hello ${data.name}\n` +
+      `Hello ${data.name},\n\n` +
       `Your Site Visit is Confirmed.\n` +
       `Project: ${data.projectName}\n` +
-      `Date: ${data.date}\n` +
-      `Time: ${data.time}\n` +
-      `Reference: ${apt.referenceId}\n` +
-      `Thank you.`;
+      `Reference: ${apt.referenceId}\n\n` +
+      `For any other queries, please connect with us:\n` +
+      `📞 Call / WhatsApp: ${phonesList}\n\n` +
+      `📍 Office Address: ${address}\n` +
+      `🗺️ Google Maps: ${mapsLink}\n\n` +
+      `Thank you,\n` +
+      `Aditya Builders Team`;
 
     await sendBotReply(phone, messageId, customerConfirmText);
 
