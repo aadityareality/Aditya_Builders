@@ -1479,7 +1479,7 @@ const handleBrochureFollowup = async (phone, textBody, state, customerName, mess
 // ── Contact Sales & Callback state machines (Features 5 & 6) ───────────────────
 const startContactSalesFlow = async (phone, messageId = null, currentState = null) => {
   const settings = await SiteSettings.getSettings();
-  const salesPhone = settings.whatsappNumber || settings.phoneNumbers?.[0] || "919974858500";
+  const salesPhone = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
   const email = settings.email || "aadityareality1@gmail.com";
   const hours = settings.officeHours || "Mon-Sat: 9:30 AM - 7:00 PM";
   

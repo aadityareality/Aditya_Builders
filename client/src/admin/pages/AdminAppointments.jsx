@@ -308,8 +308,6 @@ export default function AdminAppointments() {
                   <th className="px-6 py-4">Reference</th>
                   <th className="px-6 py-4">Customer Details</th>
                   <th className="px-6 py-4">Project</th>
-                  <th className="px-6 py-4">Visit Date & Time</th>
-                  <th className="px-6 py-4 text-center">Visitors</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
@@ -317,7 +315,7 @@ export default function AdminAppointments() {
               <tbody className="divide-y divide-amber-50">
                 {appointments.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-12 text-center text-[#A89F95] font-bold">
+                    <td colSpan="5" className="px-6 py-12 text-center text-[#A89F95] font-bold">
                       No appointments matched your query.
                     </td>
                   </tr>
@@ -340,28 +338,9 @@ export default function AdminAppointments() {
                       <td className="px-6 py-4 font-bold text-[#2E2A26]">
                         {apt.projectName || "General Inquiry"}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-[#2E2A26] flex items-center gap-1">
-                            <FiCalendar className="text-[#A89F95]" /> 
-                            {new Date(apt.preferredDate).toLocaleDateString("en-IN", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric"
-                            })}
-                          </span>
-                          <span className="text-[10px] text-[#6B625A] font-bold flex items-center gap-1">
-                            <FiClock className="text-[#A89F95]" /> {apt.preferredTime}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center font-bold text-[#2E2A26]">
-                        {apt.numberOfVisitors}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2.5 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
                           apt.status === "Confirmed" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                          apt.status === "Rescheduled" ? "bg-blue-50 text-blue-600 border border-blue-100" :
                           apt.status === "Cancelled" ? "bg-red-50 text-red-600 border border-red-100" :
                           "bg-amber-50 text-amber-600 border border-amber-100"
                         }`}>
