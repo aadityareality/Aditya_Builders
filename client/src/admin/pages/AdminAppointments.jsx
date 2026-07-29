@@ -80,17 +80,17 @@ export default function AdminAppointments() {
     loadProjects();
   }, []);
 
-  // Cancel Appointment handler
-  const handleCancelApt = async (id) => {
-    if (!window.confirm("Are you sure you want to cancel this site visit appointment?")) return;
+  // Delete Appointment handler
+  const handleDeleteApt = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this appointment record?")) return;
     try {
-      const { data } = await api.patch(`/admin/appointments/${id}/cancel`);
+      const { data } = await api.delete(`/admin/appointments/${id}`);
       if (data.success) {
-        toast.success("Site visit cancelled successfully");
-        loadAppointments();
+        toast.success("Appointment deleted successfully");
+        setAppointments((prev) => prev.filter((apt) => apt._id !== id));
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to cancel visit booking");
+      toast.error(err.response?.data?.message || "Failed to delete appointment");
     }
   };
 
@@ -359,16 +359,14 @@ export default function AdminAppointments() {
                               <FiSend className="w-3.5 h-3.5" />
                             </button>
                           )}
-                          {/* Cancel */}
-                          {apt.status !== "Cancelled" && (
-                            <button
-                              onClick={() => handleCancelApt(apt._id)}
-                              title="Cancel Site Visit"
-                              className="p-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl transition-all"
-                            >
-                              <FiTrash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDeleteApt(apt._id)}
+                            title="Delete Appointment"
+                            className="p-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 hover:border-red-200 rounded-xl transition-all"
+                          >
+                            <FiTrash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>

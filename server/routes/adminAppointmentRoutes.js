@@ -4,7 +4,8 @@ import {
   getAppointments,
   sendManualReminder,
   cancelAppointment,
-  rescheduleAppointment
+  rescheduleAppointment,
+  deleteAppointment
 } from "../controllers/adminAppointmentController.js";
 
 const router = express.Router();
@@ -13,6 +14,9 @@ router.use(protect);
 
 router.route("/")
   .get(getAppointments);
+
+router.route("/:id")
+  .delete(deleteAppointment);
 
 router.route("/:id/reminder")
   .post(sendManualReminder);

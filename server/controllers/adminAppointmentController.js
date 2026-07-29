@@ -145,5 +145,15 @@ export const rescheduleAppointment = catchAsync(async (req, res) => {
     console.warn("Failed to notify customer of manual reschedule:", err.message);
   }
 
-  res.status(200).json({ success: true, data: appointment });
+/**
+ * DELETE /api/admin/appointments/:id
+ * Delete appointment completely
+ */
+export const deleteAppointment = catchAsync(async (req, res) => {
+  const appointment = await Appointment.findByIdAndDelete(req.params.id);
+  if (!appointment) {
+    return res.status(404).json({ success: false, message: "Appointment not found" });
+  }
+
+  res.status(200).json({ success: true, message: "Appointment deleted successfully" });
 });
