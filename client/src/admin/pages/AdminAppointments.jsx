@@ -204,7 +204,7 @@ export default function AdminAppointments() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-amber-100 pb-4 gap-4">
         <div>
           <h2 className="text-2xl font-bold font-display text-[#2E2A26]">Site Visit Appointments</h2>
-          <p className="text-xs text-[#6B625A] mt-1">Manage scheduled property tours, rescheduling requests, and WhatsApp alerts.</p>
+          <p className="text-xs text-[#6B625A] mt-1">Manage scheduled property tours, site visits, and WhatsApp alerts.</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -287,7 +287,6 @@ export default function AdminAppointments() {
           >
             <option value="">All Statuses</option>
             <option value="Confirmed">Confirmed</option>
-            <option value="Rescheduled">Rescheduled</option>
             <option value="Cancelled">Cancelled</option>
             <option value="Completed">Completed</option>
           </select>
