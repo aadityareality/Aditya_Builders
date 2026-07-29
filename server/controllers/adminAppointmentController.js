@@ -145,6 +145,9 @@ export const rescheduleAppointment = catchAsync(async (req, res) => {
     console.warn("Failed to notify customer of manual reschedule:", err.message);
   }
 
+  res.status(200).json({ success: true, data: appointment });
+});
+
 /**
  * DELETE /api/admin/appointments/:id
  * Delete appointment completely
