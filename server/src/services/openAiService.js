@@ -80,7 +80,7 @@ const generateMockCompletion = (systemPrompt, userPrompt) => {
     return "RERA stands for Real Estate Regulatory Authority. All our ongoing projects like Aaditya Elegance and Aaditya Skyline are fully registered under Gujarat RERA.";
   }
   if (text.includes("price") || text.includes("how much") || text.includes("cost") || text.includes("pricing") || text.includes("ketla") || text.includes("kitna") || text.includes("rate")) {
-    return "For exact pricing details and special offers, please connect directly with our sales team! 📞 Call or WhatsApp: +91 99748 58500";
+    return "For exact pricing details and special offers, please connect directly with our sales team! 📞 Call or WhatsApp: +91 99748 58500 / +91 99981 12121";
   }
 
   if (text.includes("possession") || text.includes("ready")) {

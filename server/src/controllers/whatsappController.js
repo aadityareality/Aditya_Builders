@@ -486,7 +486,7 @@ Answer the client's questions about properties, prices, configurations, possessi
 
 CRUCIAL RULES:
 1. IF THE CUSTOMER ASKS ABOUT PRICE, PRICING, COST, RATES, OR HOW MUCH A PROPERTY/PROJECT COSTS:
-   You MUST instruct them to connect directly with our sales team for exact pricing details and special offers at: +91 99748 58500.
+   You MUST instruct them to connect directly with our sales team for exact pricing details and special offers at: +91 99748 58500 / +91 99981 12121.
 2. Answer using ONLY the grounded database facts provided below for other non-pricing questions. Do NOT fabricate, guess, or assume any dates, amenities, or facts.
 3. If the grounded facts do not contain the answer to their question, politely reply: "I don't have information on that. Let me refer you to a human sales representative to help you further." and do not guess.
 4. Provide general investment/financial/legal guidance only as general educational information. Mention that you do NOT offer personalized financial/legal recommendations.
@@ -995,7 +995,7 @@ export const receiveWebhook = async (req, res) => {
         } else {
           // Standard / Stateless Command router
           if (["price", "pricing", "cost", "rate", "rates", "how much", "ketla", "kitna", "bhav", "bhavu"].some(k => lowerText.includes(k))) {
-            await sendBotReply(from, message.id, "For exact pricing details and special offers, please connect directly with our sales team! 📞 Call or WhatsApp: +91 99748 58500");
+            await sendBotReply(from, message.id, "For exact pricing details and special offers, please connect directly with our sales team! 📞 Call or WhatsApp: +91 99748 58500 / +91 99981 12121");
           } else if (lowerText === "projects") {
 
             await sendBotReply(from, message.id, "Please visit:\n\nhttps://adityabuilders.in");
@@ -1569,15 +1569,39 @@ const handleCallbackRequest = async (phone, textBody, state, customerName, messa
 // ── Site Visit Booking state machine (Feature 7) ─────────────────────────────
 const startSiteVisitBookingFlow = async (phone, messageId = null, currentState = null, prefilledData = {}) => {
   await ConversationState.deleteMany({ phone }); // reset
-  await updateConversationState(phone, "site_visit_booking", 1, prefilledData, currentState);
-  await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please enter your **Full Name**:");
+  
+  const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
+  if (projects.length > 0) {
+    const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
+    const data = { ...prefilledData, projectList: projects.map(p => p._id) };
+    await updateConversationState(phone, "site_visit_booking", 0, data, currentState);
+    await sendBotReply(phone, messageId, `Great! Let's book a site visit.\n\nPlease choose which project you want to visit (reply with the option number):\n\n${listText}\n${projects.length + 1}. General Tour`);
+  } else {
+    const data = { ...prefilledData, projectName: "General Site Visit" };
+    await updateConversationState(phone, "site_visit_booking", 1, data, currentState);
+    await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please enter your **Full Name**:");
+  }
 };
 
 const handleSiteVisitBooking = async (phone, textBody, state, customerName, messageId = null) => {
   const step = state.currentStep;
   const data = state.collectedData || {};
 
-  if (step === 1) {
+  if (step === 0) {
+    const idx = parseInt(textBody, 10) - 1;
+    if (data.projectList && idx >= 0 && idx < data.projectList.length) {
+      const projectId = data.projectList[idx];
+      const project = await Project.findById(projectId);
+      data.projectId = project._id;
+      data.projectName = project.title;
+    } else {
+      data.projectId = null;
+      data.projectName = "General Site Visit";
+    }
+
+    await updateConversationState(phone, "site_visit_booking", 1, data, state);
+    await sendBotReply(phone, messageId, `Selected: *${data.projectName}*\n\nPlease enter your **Full Name**:`);
+  } else if (step === 1) {
     data.name = textBody;
     await updateConversationState(phone, "site_visit_booking", 2, data, state);
     await sendBotReply(
@@ -1644,16 +1668,13 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
     const phonesList = settings.phoneNumbers?.length > 0 ? settings.phoneNumbers.join(" / ") : "+91 99748 58500 / +91 99981 12121";
 
     const customerConfirmText = 
-      `Hello ${data.name},\n\n` +
       `Your Site Visit is Confirmed.\n` +
       `Project: ${data.projectName}\n` +
       `Reference: ${apt.referenceId}\n\n` +
       `For any other queries, please connect with us:\n` +
       `📞 Call / WhatsApp: ${phonesList}\n\n` +
       `📍 Office Address: ${address}\n` +
-      `🗺️ Google Maps: ${mapsLink}\n\n` +
-      `Thank you,\n` +
-      `Aditya Builders Team`;
+      `🗺️ Google Maps: ${mapsLink}`;
 
     await sendBotReply(phone, messageId, customerConfirmText);
 
@@ -1662,12 +1683,7 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
       `📅 *NEW SITE VISIT BOOKED*\n\n` +
       `Name: ${data.name}\n` +
       `Phone: ${data.phone}\n` +
-      `Email: ${data.email}\n` +
       `Project: ${data.projectName}\n` +
-      `Date: ${data.date}\n` +
-      `Time: ${data.time}\n` +
-      `Visitors: ${data.visitors}\n` +
-      `Notes: ${data.notes || "None"}\n` +
       `Reference ID: ${apt.referenceId}`;
 
     await whatsappService.sendTextMessage(whatsappConfig.adminPhoneNumber, adminAlertText).catch(() => {});

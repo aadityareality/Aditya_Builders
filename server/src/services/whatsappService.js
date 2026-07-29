@@ -142,9 +142,11 @@ export const sendTextMessage = async (to, text, customerName = null) => {
     ]);
   }
 
-  // Active session: send free-form with personalized greeting & signoff
-  const greetingHeader = name && name !== "Client" ? `Hello, ${name}!` : `Hello!`;
-  const fullText = `${greetingHeader}\n\n${text}\n\nBest regards,\nAditya Builders Team`;
+  // Active session: send free-form with personalized greeting & signoff (avoid duplicate signoffs)
+  const greetingHeader = name && name !== "Client" && !text.toLowerCase().includes("hello") ? `Hello, ${name}!\n\n` : ``;
+  const needsSignoff = !text.toLowerCase().includes("aditya builders") && !text.toLowerCase().includes("best regards") && !text.toLowerCase().includes("thank you");
+  const signoffText = needsSignoff ? `\n\nBest regards,\nAditya Builders Team` : ``;
+  const fullText = `${greetingHeader}${text}${signoffText}`;
   const payload = {
     messaging_product: "whatsapp",
     recipient_type: "individual",
