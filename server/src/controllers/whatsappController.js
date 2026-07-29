@@ -1572,12 +1572,12 @@ const startSiteVisitBookingFlow = async (phone, messageId = null, currentState =
   
   const projects = await Project.find({ isActive: true }).sort({ displayOrder: 1 });
   if (projects.length > 0) {
-    const listText = projects.map((p, idx) => `${idx + 1}. ${p.title} (${p.location})`).join("\n");
+    const listText = projects.map((p, idx) => `${idx + 1}. ${p.title}`).join("\n");
     const data = { ...prefilledData, projectList: projects.map(p => p._id) };
     await updateConversationState(phone, "site_visit_booking", 0, data, currentState);
-    await sendBotReply(phone, messageId, `Great! Let's book a site visit.\n\nPlease choose which project you want to visit (reply with the option number):\n\n${listText}\n${projects.length + 1}. General Tour`);
+    await sendBotReply(phone, messageId, `Great! Let's book a site visit.\n\nPlease choose which project you want to visit (reply with the option number):\n\n${listText}`);
   } else {
-    const data = { ...prefilledData, projectName: "General Site Visit" };
+    const data = { ...prefilledData, projectName: "Aaditya Builders Project" };
     await updateConversationState(phone, "site_visit_booking", 1, data, currentState);
     await sendBotReply(phone, messageId, "Great! Let's book a site visit.\n\nFirst, please enter your **Full Name**:");
   }
@@ -1595,8 +1595,8 @@ const handleSiteVisitBooking = async (phone, textBody, state, customerName, mess
       data.projectId = project._id;
       data.projectName = project.title;
     } else {
-      data.projectId = null;
-      data.projectName = "General Site Visit";
+      await sendBotReply(phone, messageId, "Invalid project selection. Please reply with a valid number from the project list:");
+      return;
     }
 
     await updateConversationState(phone, "site_visit_booking", 1, data, state);
