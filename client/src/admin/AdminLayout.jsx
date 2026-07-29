@@ -145,11 +145,11 @@ export default function AdminLayout() {
         {/* Brand header */}
         <div className="p-6 border-b border-[#3D3732] flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-500 bg-white shrink-0">
-              <img src={logoImg} alt="Aditya Builders Logo" className="w-full h-full object-cover" />
+            <div className="h-9 w-auto rounded-lg overflow-hidden border border-amber-500 bg-white shrink-0 p-1 flex items-center">
+              <img src={logoImg} alt="Aaditya Builders Logo" className="h-full w-auto object-contain" />
             </div>
             <div className="text-left">
-              <span className="font-extrabold text-sm tracking-tight text-white block">Aditya CMS</span>
+              <span className="font-extrabold text-sm tracking-tight text-white block">Aaditya CMS</span>
               <span className="text-[10px] text-[#F5A623] font-bold block uppercase tracking-wider mt-0.5">
                 {admin.role}
               </span>
@@ -243,7 +243,7 @@ export default function AdminLayout() {
               <FiMenu className="w-5 h-5" />
             </button>
             <span className="text-xs font-semibold text-[#6B625A] tracking-wider uppercase hidden sm:inline-block">
-              Aditya Builders Portal
+              Aaditya Builders Portal
             </span>
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-sm animate-pulse hidden sm:inline-block"></span>
           </div>

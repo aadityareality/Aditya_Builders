@@ -187,7 +187,7 @@ export default function Home() {
     },
     {
       title: "Timely Delivery",
-      desc: "Strict adherence to handover schedules. Quality + Time = Aditya guarantees timely key handovers.",
+      desc: "Strict adherence to handover schedules. Quality + Time = Aaditya guarantees timely key handovers.",
       icon: <FiClock className="w-6 h-6 text-[#E8871E]" />,
     },
     {
@@ -369,7 +369,7 @@ export default function Home() {
           {JSON.stringify({
             "@context": "https://schema.org",
             "@type": "RealEstateAgent",
-            "name": settings.companyName || "Aditya Builders",
+            "name": settings.companyName || "Aaditya Builders",
             "image": window.location.origin + "/logo.jpg",
             "description": settings.aboutUsShort || "Leading property developer and construction company in Bhavnagar, Gujarat.",
             "address": {
@@ -441,7 +441,7 @@ export default function Home() {
         {/* Hero Background image eager loaded */}
         <img
           src={heroBuildingImg}
-          alt="Aditya Builders premium residential building exterior"
+          alt="Aaditya Builders premium residential building exterior"
           className="absolute inset-0 w-full h-full object-cover object-center sm:object-right z-0 select-none pointer-events-none"
           loading="eager"
         />

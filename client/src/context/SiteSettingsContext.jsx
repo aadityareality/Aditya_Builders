@@ -28,7 +28,7 @@ export function SiteSettingsProvider({ children }) {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#FFFBF5]">
         <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-200 border-t-[#F5A623] mb-4"></div>
         <p className="text-sm font-bold tracking-wide font-display text-[#E8871E] animate-pulse uppercase">
-          Aditya Builders
+          Aaditya Builders
         </p>
       </div>
     );
@@ -36,10 +36,10 @@ export function SiteSettingsProvider({ children }) {
 
   // Provide settings globally. If settings failed to load, provide fallback defaults.
   const fallbackSettings = {
-    companyName: "Aditya Builders",
-    tagline: "You Dream it, We Build it. Quality + Time = Aditya",
+    companyName: "Aaditya Builders",
+    tagline: "You Dream it, We Build it. Quality + Time = Aaditya",
     aboutUsShort: "Trusted construction & real estate based in Bhavnagar, Gujarat.",
-    aboutUsFull: "Aditya Builders has been shaping the skyline of Bhavnagar, Gujarat for over 15 years.",
+    aboutUsFull: "Aaditya Builders has been shaping the skyline of Bhavnagar, Gujarat for over 15 years.",
     yearsOfExperience: 15,
     happyCustomers: 1000,
     projectsCompleted: 15,

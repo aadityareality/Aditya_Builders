@@ -72,11 +72,11 @@ export default function Header() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
           {/* Logo / Brand Name */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-full overflow-hidden border border-amber-100 group-hover:scale-105 transition-transform duration-200 shadow-sm bg-white">
-              <img src={logoImg} alt="Aditya Builders Logo" className="w-full h-full object-cover" />
+            <div className="h-11 w-auto rounded-lg overflow-hidden border border-amber-100 group-hover:scale-105 transition-transform duration-200 shadow-sm bg-white p-1 flex items-center">
+              <img src={logoImg} alt="Aaditya Builders Logo" className="h-full w-auto object-contain" />
             </div>
             <div className="text-left">
-              <span className="text-xl font-bold tracking-tight font-display text-[#2E2A26] block leading-none">
+              <span className="text-xl font-extrabold tracking-tight font-display text-[#2E2A26] block leading-none">
                 {settings.companyName}
               </span>
               <span className="text-xs font-semibold tracking-wider uppercase text-[#F5A623] block mt-0.5">

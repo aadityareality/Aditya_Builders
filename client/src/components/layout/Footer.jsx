@@ -24,8 +24,8 @@ export default function Footer() {
         {/* Brand Column */}
         <div className="flex flex-col gap-6">
           <Link to="/" className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full overflow-hidden border border-amber-800 shadow-sm bg-white">
-              <img src={logoImg} alt="Aditya Builders Logo" className="w-full h-full object-cover" />
+            <div className="h-10 w-auto rounded-lg overflow-hidden border border-amber-800 shadow-sm bg-white p-1 flex items-center">
+              <img src={logoImg} alt="Aaditya Builders Logo" className="h-full w-auto object-contain" />
             </div>
             <div>
               <span className="text-lg font-bold tracking-tight font-display text-white block leading-none">
@@ -38,7 +38,7 @@ export default function Footer() {
           </Link>
           <p className="text-[#A3988F] text-xs leading-relaxed max-w-sm">
             {settings.aboutUsShort ||
-              "Quality + Time = Aditya. Shape premium spaces in Bhavnagar, Gujarat with commitment to customer dreams."}
+              "Quality + Time = Aaditya. Shape premium spaces in Bhavnagar, Gujarat with commitment to customer dreams."}
           </p>
           <div className="flex gap-3">
             <a
@@ -130,7 +130,7 @@ export default function Footer() {
           {settings.mapEmbedUrl ? (
             <div className="w-full h-32 rounded-xl overflow-hidden border border-amber-900/40">
               <iframe
-                title="Aditya Builders Office Location Map"
+                title="Aaditya Builders Office Location Map"
                 src={settings.mapEmbedUrl}
                 width="100%"
                 height="100%"

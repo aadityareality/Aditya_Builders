@@ -38,7 +38,7 @@ export default function About() {
     },
     {
       title: "Timely Delivery",
-      desc: "Our formula Quality + Time = Aditya guarantees possession handovers strictly per agreed schedules, avoiding delays and financial cost overruns.",
+      desc: "Our formula Quality + Time = Aaditya guarantees possession handovers strictly per agreed schedules, avoiding delays and financial cost overruns.",
       icon: <FiClock className="w-6 h-6 text-[#E8871E]" />,
     },
     {
@@ -81,7 +81,7 @@ export default function About() {
       <section className="bg-gradient-to-br from-amber-50 to-orange-100/40 py-16 border-b border-amber-100 text-left select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <span className="text-[10px] font-bold uppercase tracking-widest text-[#E8871E] mb-2 bg-[#F5A623]/10 px-3 py-1 rounded-full border border-[#F5A623]/25 w-max block">
-            Aditya Builders
+            Aaditya Builders
           </span>
           <h1 className="text-3xl sm:text-5xl font-extrabold font-display text-[#2E2A26] mt-2">
             Our Legacy & Story
@@ -115,7 +115,7 @@ export default function About() {
             className="bg-[#FFFBF5] border border-amber-100 rounded-3xl p-8 shadow-sm flex flex-col gap-8 select-none"
           >
             <h3 className="text-lg font-bold font-display text-[#2E2A26] border-b border-amber-100/50 pb-4">
-              Why Aditya Builders?
+              Why Aaditya Builders?
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="flex flex-col">

@@ -29,7 +29,7 @@ export default function WhatsAppFloatingButton() {
         : "a property";
       return encodeURIComponent(`Hi, I'm interested in ${projectTitle}. Please share more details.`);
     }
-    return encodeURIComponent("Hi, I'm interested in Aditya Builders' projects. Please share more details.");
+    return encodeURIComponent("Hi, I'm interested in Aaditya Builders' projects. Please share more details.");
   };
 
   const handleInteraction = () => {

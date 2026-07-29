@@ -315,7 +315,7 @@ export default function Contact() {
                   <div>
                     <h4 className="font-extrabold text-[#2E2A26] mb-1">WhatsApp Chat</h4>
                     <a
-                      href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Hi, I'm interested in Aditya Builders' projects. Please share more details.")}`}
+                      href={`https://wa.me/${settings.whatsappNumber.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("Hi, I'm interested in Aaditya Builders' projects. Please share more details.")}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={() => {

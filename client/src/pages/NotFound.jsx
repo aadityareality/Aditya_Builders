@@ -6,7 +6,7 @@ export default function NotFound() {
   return (
     <>
       <Helmet>
-        <title>404 Page Not Found | Aditya Builders</title>
+        <title>404 Page Not Found | Aaditya Builders</title>
       </Helmet>
 
       <main className="min-h-[75vh] flex items-center justify-center bg-[#FFFBF5] px-4">
